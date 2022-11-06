@@ -25,11 +25,13 @@ actions:
 
 """
 
-parser = argparse.ArgumentParser(add_help = False, usage = HELP) 
+parser = argparse.ArgumentParser(add_help = False)
 parser.add_argument("action", action = "store")
 parser.add_argument("subtarg", action = "store", nargs = "?")
-parser.add_argument("-t", "--targets", action = "store", nargs = "*")
-parser.add_argument("-I", "--interval", action = "store", default = 0, type = float)
+parser.add_argument("-H", "--help", action = "help")
+parser.add_argument("-t", "--targets", action = "store", nargs = "*", help = "A list of bulbs to target.")
+parser.add_argument("-I", "--interval", action = "store", default = 0, type = float,
+                    help = "The interval at which to blink")
 parser.add_argument("-i", "--iterations", action = "store", default = 0, type = int)
 parser.add_argument("-b", "--brightness", action = "store", default = None, type = int)
 parser.add_argument("-h", "--hue", action = "store", default = None, type = int)
