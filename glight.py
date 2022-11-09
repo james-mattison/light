@@ -1,17 +1,11 @@
+#!/usr/bin/env python3 
 import gi
-
 gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk
+from gi.repository import Gtk, GObject
+
 import light
 
 bulbs = light.get_lights()
-
-
-class BulbDataWindow(Gtk.Window):
-
-    def __init__(self, light_ob: dict):
-        super().__init__(self, title=light_ob['name'])
-
 
 class LightControlWindow(Gtk.Window):
     brightness = 255
@@ -61,7 +55,7 @@ class LightControlWindow(Gtk.Window):
     def _populate_lights(self):
         lights = light.get_lights()
 
-        grid = Gtk.LightControlWindow()
+        grid = Gtk.Grid()
         grid.set_row_spacing(5)
         grid.set_column_spacing(5)
 
@@ -89,7 +83,7 @@ class LightControlWindow(Gtk.Window):
             "Info": self.on_info_clicked
         }
 
-        btn_box = Gtk.Box()
+        btn_box = Gtk.Box(spacing = 10)
 
         buttons = {}
 
@@ -161,7 +155,6 @@ class LightControlWindow(Gtk.Window):
         self.box.pack_start(self.sliders_grid, True, True, 0)
         self.add(self.box)
 
-
-w = LightControlWindow()
-w.show_all()
+win = LightControlWindow()
+win.show_all()
 Gtk.main()
