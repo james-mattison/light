@@ -1,160 +1,274 @@
-#!/usr/bin/env python3 
 import gi
+import light
+import threading
+import atexit
+
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, GObject
 
-import light
 
-bulbs = light.get_lights()
+class GladeFileLoader:
 
-class LightControlWindow(Gtk.Window):
-    brightness = 255
-    saturation = 255
-    hue = None
+    def __init__(self):
+        self.builder = Gtk.Builder()
+        self.builder.add_from_file("glight.glade")
 
-    def on_on_clicked(self, button):
-        for name, button in self.checks.items():
-            if button.get_active():
-                print(button.get_label())
-                bulbs[button.get_label()]._set_state(True, self.saturation, self.brightness, hue=self.hue)
+    def __getitem__(self, item):
+        return self.builder.get_object(item)
 
-    def on_off_clicked(self, button):
-        for name, button in self.checks.items():
-            if button.get_active():
-                bulbs[button.get_label()]._set_state(False, self.saturation, self.brightness, hue=self.hue)
 
-    def on_blink_clicked(self, button):
-        for name, button in self.checks.items():
-            if button.get_active():
-                bulbs[button.get_label()].blink(brightness=self.brightness, saturation=self.saturation)
+loader = GladeFileLoader()
 
-    def on_fade_clicked(self, button):
-        for name, button in self.checks.items():
-            if button.get_active():
-                bulbs[button.get_label()].color_cycle(brightness=self.brightness, saturation=self.saturation,
-                                                      hue=self.hue)
 
-    def on_info_clicked(self, button):
-        ...
+class ConfigStore:
 
-    def _on_brightness_changed(self, widget):
-        self.brightness = widget.get_value_as_int()
-        print(f"Bri: {self.brightness}")
+    hue = 0
+    brightness = 0
+    saturation = 0
+    poisoned = False
+    threads = {}
 
-    def _on_saturation_changed(self, widget):
-        self.saturation = widget.get_value_as_int()
-        print(f"Sat: {self.saturation}")
+    @staticmethod
+    def get():
+        return {"brightness": ConfigStore.brightness,
+                "saturation": ConfigStore.saturation,
+                "hue": ConfigStore.hue
+                }
+
+    @staticmethod
+    def load_thread(name, thread):
+        if name in ConfigStore.threads:
+            del ConfigStore.threads[name]
+        ConfigStore.threads[name] = thread
+
+    @staticmethod
+    def shutdown_threads():
+        ConfigStore.poisoned = True
+
+class LightPanel:
+
+    def __init__(self):
+        self.lights = light.get_lights()
+        self.grid = loader['gridLights']
+        self._packed = []
+        self.pack_box()
+
+    def pack_box(self):
+        if len(self._packed) != 0:
+            for ob in self._packed:
+                self.grid.remove(ob)
+
+        col = 0
+        row = 0
+        for i, (name, bulb) in enumerate(self.lights.items()):
+            check = Gtk.CheckButton(label = name)
+            if i % 3 == 0:
+                col += 1
+                row = 0
+            self.grid.attach(check, row, col, 1, 1)
+            row += 1
+            if not check in self._packed:
+                self._packed.append(check)
+        return self.grid
+
+    def get_packed(self):
+        return self._packed
+
+panel = LightPanel()
+
+
+
+class Spinners:
 
     def _on_color_changed(self, widget):
         iter = widget.get_active_iter()
         if iter is not None:
             model = widget.get_model()
             color = light.BASE_COLORS[model[iter][0]]
-            self.hue = color
+            ConfigStore.hue = color
 
-    def _populate_lights(self):
-        lights = light.get_lights()
+    def _on_saturation_changed(self, widget):
+        saturation = widget.get_value_as_int()
+        ConfigStore.saturation = saturation
 
-        grid = Gtk.Grid()
-        grid.set_row_spacing(5)
-        grid.set_column_spacing(5)
+    def _on_brightness_changed(self, widget):
+        brightness = widget.get_value_as_int()
+        ConfigStore.brightness = brightness
 
-        checks = {}
-        row = 0
-        col = 0
-
-        for i, (name, bulb) in enumerate(lights.items()):
-            chk = Gtk.CheckButton(label=name)
-            checks[name] = chk
-            if i % 3 == 0:
-                col += 1
-                row = 0
-            grid.attach(chk, row, col, 1, 1)
-            row += 1
-
-        return grid, checks
-
-    def _populate_actions(self):
-        actions = {
-            "On": self.on_on_clicked,
-            "Off": self.on_off_clicked,
-            "Blink": self.on_blink_clicked,
-            "Fade": self.on_fade_clicked,
-            "Info": self.on_info_clicked
-        }
-
-        btn_box = Gtk.Box(spacing = 10)
-
-        buttons = {}
-
-        for action, callback in actions.items():
-            button = Gtk.Button(label=action)
-            button.connect('clicked', callback)
-            buttons[action] = button
-            btn_box.pack_start(button, False, False, 0)
-
-        return btn_box, buttons
-
-    def _populate_sliders(self):
-        sliders = [
-            "Brightness",
-            "Saturation"
-        ]
-
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        bri_adjustment = Gtk.Adjustment(upper=255, step_increment=1, page_increment=10)
-        sat_adjustment = Gtk.Adjustment(upper=255, step_increment=1, page_increment=10)
-
-        bri_box = Gtk.Box()
-        bri_label = Gtk.Label(label="Brightnesss")
-        bri_spin = Gtk.SpinButton()
-        bri_spin.set_adjustment(bri_adjustment)
-        bri_spin.connect('value-changed', self._on_brightness_changed)
-        bri_box.pack_start(bri_label, True, False, 0)
-        bri_box.pack_start(bri_spin, False, False, 0)
-
-        sat_box = Gtk.Box()
-        sat_label = Gtk.Label(label="Saturation")
-        sat_spin = Gtk.SpinButton()
-        sat_spin.set_adjustment(sat_adjustment)
-        sat_spin.connect('value-changed', self._on_saturation_changed)
-        sat_box.pack_start(sat_label, False, True, 0)
-        sat_box.pack_start(sat_spin, False, False, 0)
-
-        hue_box = Gtk.Box()
-        hue_label = Gtk.Label(label="Color")
-        color_combo = Gtk.ComboBoxText()
-        for lt, hue in light.BASE_COLORS.items():
-            color_combo.append_text(lt)
-
-        color_combo.connect('changed', self._on_color_changed)
-        color_combo.set_entry_text_column(0)
-        hue_box.pack_start(hue_label, False, False, 0)
-        hue_box.pack_start(color_combo, False, False, 0)
-
-        box.pack_start(bri_box, False, False, 0)
-        box.pack_start(sat_box, False, False, 0)
-        box.pack_start(hue_box, False, False, 0)
-
-        return box
+    packed = False
 
     def __init__(self):
-        Gtk.Window.__init__(self)
-        self.set_title("Grid")
-        self.set_default_size(640, 480)
-        self.connect('destroy', Gtk.main_quit)
+        colors = light.get_color_names()
 
-        self.box = Gtk.Box(spacing=1, orientation=Gtk.Orientation.VERTICAL)
+        self.combo = loader['comboColors']
+        if not self.packed:
+            for color, hue in light.BASE_COLORS.items():
+                self.combo.append_text(color)
+        self.combo.set_entry_text_column(0)
+        self.packed = True
 
-        self.check_grid, self.checks = self._populate_lights()
-        self.action_grid, self.action_buttons = self._populate_actions()
-        self.sliders_grid = self._populate_sliders()
+        self.combo.connect("changed", self._on_color_changed)
+        self.brightness_spinner = loader['spinBrightness']
+        self.brightness_spinner.connect('value-changed', self._on_brightness_changed)
 
-        self.box.pack_start(self.check_grid, True, True, 0)
-        self.box.pack_start(self.action_grid, True, True, 0)
-        self.box.pack_start(self.sliders_grid, True, True, 0)
-        self.add(self.box)
+        self.saturation_spinner = loader['spinSaturation']
+        self.saturation_spinner.connect('value-changed', self._on_saturation_changed)
 
-win = LightControlWindow()
-win.show_all()
-Gtk.main()
+
+class InfoWindow:
+
+    @staticmethod
+    def get_color_approximation(hue):
+        a = []
+        for val in light.BASE_COLORS.values():
+            a.append(abs(hue - val))
+        return list(light.BASE_COLORS.keys())[a.index(min(a))]
+
+    @staticmethod
+    def hide(window, event):
+        print(f"Hiding info window.")
+        window.hide()
+        return True
+
+    def __init__(self, bulb_name: str):
+        self.cnf = None
+        self.bulb_name = bulb_name
+        self.window = loader['winInfo']
+        self.window.connect("delete-event", self.hide)
+        self.name_label = loader['lblBulbName']
+        self.name_label.set_text(bulb_name)
+        self.state_label = loader['lblState']
+        self.saturation_label = loader['lblSaturation']
+        self.brightness_label = loader['lblBrightness']
+        self.color_label = loader['lblColor']
+
+    def set_labels(self):
+        self.cnf = self.get_bulb_dict(self.bulb_name)
+        state = "ON" if self.cnf['state'] == True else "OFF"
+        self.state_label.set_text(state)
+        self.saturation_label.set_text(str(self.cnf['saturation']))
+        self.brightness_label.set_text(str(self.cnf['brightness']))
+        try:
+            color = light.BASE_COLORS[self.cnf['color']]
+        except:
+            color = "(approx) " + self.get_color_approximation(self.cnf['color'])
+        self.color_label.set_text(color)
+
+    def get_bulb_dict(self, name):
+        lights = light.make_request("lights")
+        for i, vals in lights.items():
+            if vals['name'] == name:
+                state = {
+                    "state": vals['state']['on'],
+                    "brightness": vals['state']['bri'],
+                    "saturation": vals['state'].get('sat'),
+                    "color": vals['state'].get('hue') or 0
+                }
+                return state
+
+
+    def show(self):
+        self.window.show()
+
+
+class ButtonPanel:
+
+    @staticmethod
+    def get_configs():
+        cnf = {
+            "brightness": ConfigStore.brightness,
+            "saturation": ConfigStore.saturation,
+            "hue": ConfigStore.hue
+        }
+        return cnf
+
+    def _on_on_clicked(self, button):
+        for check in panel.get_packed():
+            if check.get_active():
+                name = check.get_label()
+                print(f"{name} -> ON")
+                panel.lights[name]._set_state(True, saturation=ConfigStore.saturation, brightness=ConfigStore.brightness, hue = ConfigStore.hue)
+
+    def _on_off_clicked(self, button):
+        for check in panel.get_packed():
+            if check.get_active():
+                name = check.get_label()
+                print(f"{name} -> ON")
+                panel.lights[name]._set_state(False,saturation=ConfigStore.saturation, brightness=ConfigStore.brightness, hue = ConfigStore.hue)
+
+    def _on_blink_clicked(self, button):
+        for check in panel.get_packed():
+            if check.get_active():
+                name = check.get_label()
+                print(f"{name} -> ON")
+                panel.lights[name].blink(saturation=ConfigStore.saturation, brightness=ConfigStore.brightness, hue = ConfigStore.hue)
+
+    def _on_fade_clicked(self, button):
+
+        def fade(bulb):
+            while not ConfigStore.poisoned:
+                bulb.color_cycle(brightness=ConfigStore.brightness, saturation=ConfigStore.saturation)
+
+        for check in panel.get_packed():
+            if check.get_active():
+                thread = threading.Thread(target = fade, args = (panel.lights[check.get_label()],), daemon = True)
+                thread.start()
+                ConfigStore.load_thread(check.get_label(), thread)
+                print(f"Started thread for {check.get_label()}")
+                name = check.get_label()
+                print(f"{name} -> FADE")
+
+    def _on_info_clicked(self, button):
+        for check in panel.get_packed():
+            if check.get_active():
+                name = check.get_label()
+                info_window = InfoWindow(name)
+                info_window.set_labels()
+                info_window.show()
+                break
+
+
+
+
+    def __init__(self):
+        self.on_button = loader['btnOn']
+        self.on_button.connect("clicked", self._on_on_clicked)
+        self.off_button = loader['btnOff']
+        self.off_button.connect("clicked", self._on_off_clicked)
+        self.blink_button = loader['btnBlink']
+        self.blink_button.connect("clicked", self._on_blink_clicked)
+        self.fade_button = loader['btnFade']
+        self.fade_button.connect("clicked", self._on_fade_clicked)
+        self.info_button = loader['btnInfo']
+        self.info_button.connect("clicked", self._on_info_clicked)
+
+
+
+
+
+
+class MainWindow:
+
+
+    def __init__(self):
+        self.win = loader['winMain']
+        self.frame = loader['boxMain']
+        self.panel = panel
+        self.panel.pack_box()
+        self.button_panel = ButtonPanel()
+        self.spinners = Spinners()
+
+        self.frame.pack_start(self.panel.grid, True, True, 0)
+
+    def start(self):
+        self.win.show_all()
+        Gtk.main()
+
+
+if __name__ == '__main__':
+    atexit.register(ConfigStore.shutdown_threads)
+    ConfigStore.hue = light.BASE_COLORS['green']
+    ConfigStore.saturation = 255
+    ConfigStore.brightness = 255
+    win = MainWindow()
+    win.start()

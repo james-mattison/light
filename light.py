@@ -272,12 +272,15 @@ class _Light:
 
 Light = _Light
 
-def get_lights():
+def get_lights(permit_unreachable: bool = False):
     lights = {}
     lts = make_request("lights")
     for idx, lt in lts.items():
-        lights[lt['name']] = _Light(lt['name'])
-        # print(f"Found {lt['name']}")
+        if not permit_unreachable:
+            if lt['state']['reachable']:
+                lights[lt['name']] = _Light(lt['name'])
+        else:
+            lights[lt['name']] = _Light(lt['name'])
     return lights
 
 def map_colors():
