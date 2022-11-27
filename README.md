@@ -4,6 +4,8 @@
 
 _Module  and command-line utility to control Philips Hue lights._
 
+![glight](img/glight.png)
+
 ## Usage:
 
 ```
