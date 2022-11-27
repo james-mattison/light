@@ -4,7 +4,9 @@ import threading
 import atexit
 
 gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk, GObject
+from gi.repository import Gtk, GObject, Gdk
+
+
 
 
 class GladeFileLoader:
@@ -62,6 +64,11 @@ class LightPanel:
         row = 0
         for i, (name, bulb) in enumerate(self.lights.items()):
             check = Gtk.CheckButton(label = name)
+            if bulb.light['state']['on']:
+                check.modify_fg(Gtk.StateType.NORMAL, Gdk.color_parse("blue"))
+            else:
+                check.modify_fg(Gtk.StateType.NORMAL, Gdk.color_parse("red"))
+
             if i % 3 == 0:
                 col += 1
                 row = 0
@@ -193,14 +200,14 @@ class ButtonPanel:
         for check in panel.get_packed():
             if check.get_active():
                 name = check.get_label()
-                print(f"{name} -> ON")
+                print(f"{name} -> OFF")
                 panel.lights[name]._set_state(False,saturation=ConfigStore.saturation, brightness=ConfigStore.brightness, hue = ConfigStore.hue)
 
     def _on_blink_clicked(self, button):
         for check in panel.get_packed():
             if check.get_active():
                 name = check.get_label()
-                print(f"{name} -> ON")
+                print(f"{name} -> BLINKß")
                 panel.lights[name].blink(saturation=ConfigStore.saturation, brightness=ConfigStore.brightness, hue = ConfigStore.hue)
 
     def _on_fade_clicked(self, button):

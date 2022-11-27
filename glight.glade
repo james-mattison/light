@@ -262,8 +262,8 @@
   </object>
   <object class="GtkWindow" id="winInfo">
     <property name="can-focus">False</property>
-    <property name="default-width">320</property>
-    <property name="default-height">240</property>
+    <property name="default-width">200</property>
+    <property name="default-height">160</property>
     <child>
       <object class="GtkBox">
         <property name="visible">True</property>
@@ -318,6 +318,8 @@
               <object class="GtkLabel">
                 <property name="visible">True</property>
                 <property name="can-focus">False</property>
+                <property name="hexpand">True</property>
+                <property name="vexpand">True</property>
                 <property name="xpad">10</property>
                 <property name="label" translatable="yes">State</property>
                 <property name="xalign">0.10000000149011612</property>
@@ -331,6 +333,8 @@
               <object class="GtkLabel">
                 <property name="visible">True</property>
                 <property name="can-focus">False</property>
+                <property name="hexpand">True</property>
+                <property name="vexpand">True</property>
                 <property name="xpad">10</property>
                 <property name="label" translatable="yes">Saturation</property>
                 <property name="xalign">0.10000000149011612</property>
@@ -344,6 +348,8 @@
               <object class="GtkLabel">
                 <property name="visible">True</property>
                 <property name="can-focus">False</property>
+                <property name="hexpand">True</property>
+                <property name="vexpand">True</property>
                 <property name="xpad">10</property>
                 <property name="label" translatable="yes">Brightness</property>
                 <property name="xalign">0.10000000149011612</property>
@@ -357,6 +363,8 @@
               <object class="GtkLabel" id="lblState">
                 <property name="visible">True</property>
                 <property name="can-focus">False</property>
+                <property name="hexpand">True</property>
+                <property name="vexpand">True</property>
               </object>
               <packing>
                 <property name="left-attach">1</property>
@@ -367,6 +375,8 @@
               <object class="GtkLabel" id="lblBrightness">
                 <property name="visible">True</property>
                 <property name="can-focus">False</property>
+                <property name="hexpand">True</property>
+                <property name="vexpand">True</property>
               </object>
               <packing>
                 <property name="left-attach">1</property>
@@ -377,6 +387,8 @@
               <object class="GtkLabel" id="lblSaturation">
                 <property name="visible">True</property>
                 <property name="can-focus">False</property>
+                <property name="hexpand">True</property>
+                <property name="vexpand">True</property>
               </object>
               <packing>
                 <property name="left-attach">1</property>
@@ -387,6 +399,8 @@
               <object class="GtkLabel">
                 <property name="visible">True</property>
                 <property name="can-focus">False</property>
+                <property name="hexpand">True</property>
+                <property name="vexpand">True</property>
                 <property name="xpad">10</property>
                 <property name="label" translatable="yes">Color?</property>
                 <property name="xalign">0.10000000149011612</property>
@@ -400,6 +414,8 @@
               <object class="GtkLabel" id="lblColor">
                 <property name="visible">True</property>
                 <property name="can-focus">False</property>
+                <property name="hexpand">True</property>
+                <property name="vexpand">True</property>
               </object>
               <packing>
                 <property name="left-attach">1</property>
