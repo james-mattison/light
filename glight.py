@@ -1,15 +1,21 @@
+#!/usr/bin/env python3
 import gi
 import light
+import os
 import threading
+import subprocess
+import getpass
 import atexit
 
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, GObject, Gdk
 
-
-
+bashrc = os.path.abspath(os.path.join(os.path.expanduser("~"), ".bashrc"))
+subprocess.run(f"source {bashrc}", shell = True)
+print(f"Sourced bashrc.")
 
 class GladeFileLoader:
+    """Load a the glight.glade file"""
 
     def __init__(self):
         self.builder = Gtk.Builder()
@@ -46,6 +52,7 @@ class ConfigStore:
     @staticmethod
     def shutdown_threads():
         ConfigStore.poisoned = True
+
 
 class LightPanel:
 
@@ -84,7 +91,6 @@ class LightPanel:
 panel = LightPanel()
 
 
-
 class Spinners:
 
     def _on_color_changed(self, widget):
@@ -112,10 +118,12 @@ class Spinners:
             for color, hue in light.BASE_COLORS.items():
                 self.combo.append_text(color)
         self.combo.set_entry_text_column(0)
+        self.combo.set_active(0)
         self.packed = True
 
         self.combo.connect("changed", self._on_color_changed)
         self.brightness_spinner = loader['spinBrightness']
+        self.brightness_spinner.set_range(0, 255)
         self.brightness_spinner.connect('value-changed', self._on_brightness_changed)
 
         self.saturation_spinner = loader['spinSaturation']
@@ -126,6 +134,8 @@ class InfoWindow:
 
     @staticmethod
     def get_color_approximation(hue):
+        if isinstance(hue, str):
+            return hue
         a = []
         for val in light.BASE_COLORS.values():
             a.append(abs(hue - val))
@@ -144,6 +154,7 @@ class InfoWindow:
         self.window.connect("delete-event", self.hide)
         self.name_label = loader['lblBulbName']
         self.name_label.set_text(bulb_name)
+        self.capabilities_label = loader['lblCapabilities']
         self.state_label = loader['lblState']
         self.saturation_label = loader['lblSaturation']
         self.brightness_label = loader['lblBrightness']
@@ -155,6 +166,7 @@ class InfoWindow:
         self.state_label.set_text(state)
         self.saturation_label.set_text(str(self.cnf['saturation']))
         self.brightness_label.set_text(str(self.cnf['brightness']))
+        self.capabilities_label.set_text(str(self.cnf['capabilities']))
         try:
             color = light.BASE_COLORS[self.cnf['color']]
         except:
@@ -169,7 +181,8 @@ class InfoWindow:
                     "state": vals['state']['on'],
                     "brightness": vals['state']['bri'],
                     "saturation": vals['state'].get('sat'),
-                    "color": vals['state'].get('hue') or 0
+                    "color": vals['state'].get('hue') or "",
+                    "capabilities": "Color" if vals['state'].get("ct") else "White Only"
                 }
                 return state
 
@@ -259,6 +272,8 @@ class MainWindow:
 
     def __init__(self):
         self.win = loader['winMain']
+        self.win.set_keep_above(True)
+        self.win.connect("destroy", Gtk.main_quit)
         self.frame = loader['boxMain']
         self.panel = panel
         self.panel.pack_box()
