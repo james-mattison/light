@@ -7,6 +7,8 @@ import json
 import time
 import os
 
+import light
+
 requests.packages.urllib3.disable_warnings()
 
 
@@ -82,7 +84,12 @@ BASE_COLORS = {
 }
 
 def make_request(*endpoints, kind = "get", body = None):
-
+    """
+    create the API request for the Hue controller
+    endpoints: URL chunks
+    kind: request kind, lower case
+    body: the JSON-formatted payload for the request
+    """
     if body:
         body = {k: v for k, v in body.items() if v is not None}
     targ = f"api/{USER}"
@@ -116,14 +123,21 @@ lights = make_request("lights")
 
 class LightThreadLoader:
 
-    threads = []
+    threads = {}
+
+    @staticmethod
+    def terminate_thread(bulb_name):
+        if bulb_name in LightThreadLoader.threads.keys():
+            del LightThreadLoader.threads[bulb_name]
+
+
 
     def __init__(self, target, *args, **kwargs):
         self.poisoned = False
         self.target = target
         self.args = args
         self.kwargs = kwargs
-        self.forever = kwargs.get('forever', False)
+        self.forever = kwargs.pop('forever')
         self.thread = self._load_thread()
 
     def _load_thread(self):
@@ -133,16 +147,15 @@ class LightThreadLoader:
                     break
                 callback(*args, **kwargs)
 
-        xargs = [ self.target ] + list(self.args)
+        self.terminate_thread(self.target)
+        xargs = list(self.args)
 
         if self.poisoned:
             print(f"Poisoned - attempting to start thread that is poisoned for {self.target}.")
             return
-        if self.forever:
-            cb = foreverer
-        else:
-            cb = self.target
-            xargs = self.args            
+
+        bulb = _Light(self.target)
+        cb = foreverer
 
         if Verbose.verbose:
             print(f"Thread start, xargs: {xargs}, kwargs: {self.kwargs}")
@@ -150,10 +163,10 @@ class LightThreadLoader:
 
         thread = threading.Thread(
             target = cb,
-            args = xargs, 
+            args = (bulb.color_cycle, ),
             kwargs = self.kwargs,
             daemon = True)
-        self.threads.append(thread)
+        self.threads[self.target] = thread
         return thread
 
     def start(self):
@@ -180,6 +193,8 @@ class _Color:
 
 class _Light:
 
+    _lights = {}
+
     def __init__(self, name: str):
         self.name = name
 
@@ -191,11 +206,10 @@ class _Light:
 
     def get_light(self):
         lts = make_request("lights")
-        for lt in lts:
-            if lts[lt].get('name') == self.name:
-                self.light = lts[lt]
-                return lt, lts[lt]
-    
+
+        for idx, ob in lts.items():
+            if ob['name'] == self.name:
+                return idx, ob
 
     def configure(self, *args, **kwargs):
         return self._set_state(*args, **kwargs)

@@ -4,15 +4,16 @@ import light
 import os
 import threading
 import subprocess
-import getpass
 import atexit
 
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, GObject, Gdk
+Gdk.threads_init()
 
 bashrc = os.path.abspath(os.path.join(os.path.expanduser("~"), ".bashrc"))
-subprocess.run(f"source {bashrc}", shell = True)
+subprocess.run(f"source {bashrc}", shell=True)
 print(f"Sourced bashrc.")
+
 
 class GladeFileLoader:
     """Load a the glight.glade file"""
@@ -29,7 +30,6 @@ loader = GladeFileLoader()
 
 
 class ConfigStore:
-
     hue = 0
     brightness = 0
     saturation = 0
@@ -55,6 +55,7 @@ class ConfigStore:
 
 
 class LightPanel:
+    _objects = {}
 
     def __init__(self):
         self.lights = light.get_lights()
@@ -70,7 +71,7 @@ class LightPanel:
         col = 0
         row = 0
         for i, (name, bulb) in enumerate(self.lights.items()):
-            check = Gtk.CheckButton(label = name)
+            check = Gtk.CheckButton(label=name)
             if bulb.light['state']['on']:
                 check.modify_fg(Gtk.StateType.NORMAL, Gdk.color_parse("blue"))
             else:
@@ -83,12 +84,18 @@ class LightPanel:
             row += 1
             if not check in self._packed:
                 self._packed.append(check)
+            self._objects[name] = bulb
+
         return self.grid
 
     def get_packed(self):
         return self._packed
 
+
 panel = LightPanel()
+
+for k, v in panel._objects.items():
+    print(k, v)
 
 
 class Spinners:
@@ -186,7 +193,6 @@ class InfoWindow:
                 }
                 return state
 
-
     def show(self):
         self.window.show()
 
@@ -207,21 +213,27 @@ class ButtonPanel:
             if check.get_active():
                 name = check.get_label()
                 print(f"{name} -> ON")
-                panel.lights[name]._set_state(True, saturation=ConfigStore.saturation, brightness=ConfigStore.brightness, hue = ConfigStore.hue)
+                panel.lights[name]._set_state(True, saturation=ConfigStore.saturation,
+                                              brightness=ConfigStore.brightness, hue=ConfigStore.hue)
 
     def _on_off_clicked(self, button):
         for check in panel.get_packed():
             if check.get_active():
                 name = check.get_label()
                 print(f"{name} -> OFF")
-                panel.lights[name]._set_state(False,saturation=ConfigStore.saturation, brightness=ConfigStore.brightness, hue = ConfigStore.hue)
+                panel.lights[name]._set_state(False, saturation=ConfigStore.saturation,
+                                              brightness=ConfigStore.brightness, hue=ConfigStore.hue)
 
     def _on_blink_clicked(self, button):
         for check in panel.get_packed():
             if check.get_active():
                 name = check.get_label()
-                print(f"{name} -> BLINKß")
-                panel.lights[name].blink(saturation=ConfigStore.saturation, brightness=ConfigStore.brightness, hue = ConfigStore.hue)
+                print(f"{name} -> BLINK")
+                forever = loader['btnForever'].get_active()
+                print(panel.lights[name].name)
+                thread = light.LightThreadLoader(panel.lights[name].blink, kwargs = {"brightness": ConfigStore.brightness, "saturation": ConfigStore.saturation, "hue": ConfigStore.hue},  forever = forever)
+                panel.lights[name].blink(saturation=ConfigStore.saturation, brightness=ConfigStore.brightness,
+                                         hue=ConfigStore.hue)
 
     def _on_fade_clicked(self, button):
 
@@ -231,9 +243,12 @@ class ButtonPanel:
 
         for check in panel.get_packed():
             if check.get_active():
-                thread = threading.Thread(target = fade, args = (panel.lights[check.get_label()],), daemon = True)
+                #
+                # thread = threading.Thread(target=fade, args=(panel.lights[check.get_label()],), daemon=True)
+                # thread.start()
+                # ConfigStore.load_thread(check.get_label(), thread)
+                thread = light.LightThreadLoader(check.get_label(), forever = True)
                 thread.start()
-                ConfigStore.load_thread(check.get_label(), thread)
                 print(f"Started thread for {check.get_label()}")
                 name = check.get_label()
                 print(f"{name} -> FADE")
@@ -246,9 +261,6 @@ class ButtonPanel:
                 info_window.set_labels()
                 info_window.show()
                 break
-
-
-
 
     def __init__(self):
         self.on_button = loader['btnOn']
@@ -263,12 +275,7 @@ class ButtonPanel:
         self.info_button.connect("clicked", self._on_info_clicked)
 
 
-
-
-
-
 class MainWindow:
-
 
     def __init__(self):
         self.win = loader['winMain']
