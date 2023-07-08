@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import subprocess
 import requests
 import threading
 import argparse
@@ -7,10 +6,18 @@ import json
 import time
 import os
 
-import light
+"""
+light.py: methods for controlling a Phillips Hue light via its RESTful API.
 
+This script expects you to have LIGHT_USER and LIGHT_UNIT in your environmental 
+variables. 
+LIGHT_USER -> the user ID that you get from the Philips developer API.
+LIGHT_UNIT -> the HTTP endpoint for the Hue Bridge.
+
+"""
+
+# Disable HTTPS invalid certificate warnings.
 requests.packages.urllib3.disable_warnings()
-
 
 HELP = """
 lights <action> [ <subtarg> ]
@@ -24,21 +31,20 @@ actions:
   blink                 Blink all lights. If --targets, blink specified lights
   fade                  Loop through all available colors
 
-
 """
 
-parser = argparse.ArgumentParser(add_help = False)
-parser.add_argument("action", action = "store")
-parser.add_argument("subtarg", action = "store", nargs = "?")
-parser.add_argument("-H", "--help", action = "help")
-parser.add_argument("-t", "--targets", action = "store", nargs = "*", help = "A list of bulbs to target.")
-parser.add_argument("-I", "--interval", action = "store", default = 0, type = float,
-                    help = "The interval at which to blink")
-parser.add_argument("-i", "--iterations", action = "store", default = 0, type = int)
-parser.add_argument("-b", "--brightness", action = "store", default = None, type = int)
-parser.add_argument("-h", "--hue", action = "store", default = None, type = int)
-parser.add_argument("-s", "--saturation", action = "store", default = None)
-parser.add_argument("-v", "--verbose", action = "store_true", default = False)
+parser = argparse.ArgumentParser(add_help=False)
+parser.add_argument("action", action="store")
+parser.add_argument("subtarg", action="store", nargs="?")
+parser.add_argument("-H", "--help", action="help")
+parser.add_argument("-t", "--targets", action="store", nargs="*", help="A list of bulbs to target.")
+parser.add_argument("-I", "--interval", action="store", default=0, type=float,
+                    help="The interval at which to blink")
+parser.add_argument("-i", "--iterations", action="store", default=0, type=int)
+parser.add_argument("-b", "--brightness", action="store", default=None, type=int)
+parser.add_argument("-h", "--hue", action="store", default=None, type=int)
+parser.add_argument("-s", "--saturation", action="store", default=None)
+parser.add_argument("-v", "--verbose", action="store_true", default=False)
 HELP_ITEMS = [
     ("get-lights", "Get a list of connected lights."),
     ("get-colors", "Get a list of valid colors"),
@@ -58,11 +64,17 @@ class Verbose:
     @verbose.setter
     def verbose(self, val: bool):
         self._verbose = val
-    
 
+
+#
+# Load the username and IP address of the 
+#
 USER = os.environ['LIGHT_USER']
 UNIT = os.environ['LIGHT_UNIT']
 
+#
+# approximate color codes for each light.
+#
 
 BASE_COLORS = {
     "red": 0,
@@ -83,7 +95,8 @@ BASE_COLORS = {
     "bright_pink": 60000
 }
 
-def make_request(*endpoints, kind = "get", body = None):
+
+def make_request(*endpoints, kind="get", body=None):
     """
     create the API request for the Hue controller
     endpoints: URL chunks
@@ -98,39 +111,35 @@ def make_request(*endpoints, kind = "get", body = None):
 
     targ = "/".join([UNIT, targ])
     kinds = {
-            "get": requests.get,
-            "post": requests.post,
-            "put": requests.put
-            }
-    
+        "get": requests.get,
+        "post": requests.post,
+        "put": requests.put
+    }
+
     if not kind in kinds:
         print(f"{kind} not in {kinds}")
-        return 
-    
-    req = kinds[kind](targ, verify = False, json = body)
+        return
+
+    req = kinds[kind](targ, verify=False, json=body)
 
     return req.json()
 
-def get_color_names():
+
+def get_color_names() -> list:
+    """Return a list of strings of the names of the colors"""
     names = []
     for color in BASE_COLORS.keys():
         names.append(color)
     return names
 
 
-lights = make_request("lights")
-
-
 class LightThreadLoader:
-
     threads = {}
 
     @staticmethod
     def terminate_thread(bulb_name):
         if bulb_name in LightThreadLoader.threads.keys():
             del LightThreadLoader.threads[bulb_name]
-
-
 
     def __init__(self, target, *args, **kwargs):
         self.poisoned = False
@@ -160,12 +169,11 @@ class LightThreadLoader:
         if Verbose.verbose:
             print(f"Thread start, xargs: {xargs}, kwargs: {self.kwargs}")
 
-
         thread = threading.Thread(
-            target = cb,
-            args = (bulb.color_cycle, ),
-            kwargs = self.kwargs,
-            daemon = True)
+            target=cb,
+            args=(bulb.color_cycle,),
+            kwargs=self.kwargs,
+            daemon=True)
         self.threads[self.target] = thread
         return thread
 
@@ -192,7 +200,6 @@ class _Color:
 
 
 class _Light:
-
     _lights = {}
 
     def __init__(self, name: str):
@@ -215,32 +222,35 @@ class _Light:
         return self._set_state(*args, **kwargs)
 
     def _set_state(self,
-        on: bool = False, 
-        saturation = 255, 
-        brightness = 255,
-        hue = None,
-        forever = False):
+                   on: bool = False,
+                   saturation=255,
+                   brightness=255,
+                   hue=None,
+                   forever=False,
+                   **kwargs):
 
         left = ['saturation', 'brightness', 'hue']
-        right = [ saturation, brightness, hue]
+        right = [saturation, brightness, hue]
         attribs = dict(zip(left, right))
 
         for k, v in attribs.items():
             if v:
                 setattr(self, k, v)
 
-        body = {}
+        body = dict()
         body['sat'] = saturation
         body['bri'] = brightness
         if hue is not None:
             body['hue'] = hue
+        if kwargs.get("xy"):
+            body['xy'] = kwargs['xy']
         body['on'] = on
 
         make_request("lights",
-            self.light_index, 
-            "state", 
-            body = body,
-            kind = "put")
+                     self.light_index,
+                     "state",
+                     body=body,
+                     kind="put")
 
     def turn_off(self):
         self._set_state(False)
@@ -248,7 +258,7 @@ class _Light:
     def turn_on(self, **kwargs):
         self._set_state(True, **kwargs)
 
-    def blink(self,  **kwargs):
+    def blink(self, **kwargs):
         interval = float(kwargs.get('interval', 1.0))
         if interval is None:
             interval = 1.0
@@ -262,7 +272,7 @@ class _Light:
         clr = None
         if color in BASE_COLORS.keys():
             clr = BASE_COLORS[color]
-            self._set_state(True, hue = clr, **kwargs)
+            self._set_state(True, hue=clr, **kwargs)
         else:
             print(f"Color: {color} not in {list(BASE_COLORS.keys())}")
 
@@ -271,20 +281,20 @@ class _Light:
             step = 200
         else:
             step = int(step)
-        if not interval: 
+        if not interval:
             interval = 1.0
 
-        brightness = kwargs.get('brightness') or 10
+        brightness = kwargs.get('brightness') or 255
 
+        for i in range(0, 64000, int(step)):
+            self.configure(True, hue=i, brightness=brightness)
 
-        while True:
-            for i in range(0, 64000, int(step)):
-                self.configure(True, hue = i, brightness = brightness)
-                
-            for i in range(0, 64000, 0 - int(step)):
-                self.configure(True, hue = i, brightness = brightness)
+        for i in range(0, 64000, 0 - int(step)):
+            self.configure(True, hue=i, brightness=brightness)
+
 
 Light = _Light
+
 
 def get_lights(permit_unreachable: bool = False):
     lights = {}
@@ -297,25 +307,26 @@ def get_lights(permit_unreachable: bool = False):
             lights[lt['name']] = _Light(lt['name'])
     return lights
 
+
 def map_colors():
     map = {}
 
     light = _Light('Office')
 
     for x in range(0, 64000, 4000):
-        light.configure(True, hue = x)
+        light.configure(True, hue=x)
         clr = input(f"[x] Color name: ")
         map[clr] = x
 
     f = open("colors.json", "w")
-    json.dump(map, f, indent = 4)
+    json.dump(map, f, indent=4)
     f.close()
 
     return map
 
 
 def wait_for_join():
-    threads = [ thread for thread in LightThreadLoader.threads if thread.is_alive()]
+    threads = [thread for thread in LightThreadLoader.threads if thread.is_alive()]
     if not threads:
         print("All threads terminated.")
         quit(0)
@@ -324,13 +335,16 @@ def wait_for_join():
         time.sleep(1)
         wait_for_join()
 
+
 if __name__ == "__main__":
+    lights = make_request("lights")
+
     args = parser.parse_args()
     if args.verbose:
         Verbose.verbose = True
 
     optional_kwargs = {}
-    for kwarg in [ 'brightness', 'saturation', 'hue' ]:
+    for kwarg in ['brightness', 'saturation', 'hue']:
         if args.__dict__.get(kwarg):
             optional_kwargs[kwarg] = args.__dict__.get(kwarg)
 
@@ -347,7 +361,7 @@ if __name__ == "__main__":
             if args.action == "on":
                 bulb.turn_on()
             else:
-                bulb.turn_off() 
+                bulb.turn_off()
 
 
     elif args.action == "color":
@@ -356,7 +370,7 @@ if __name__ == "__main__":
                   "Use get-colors to get a list of valid colors.")
         else:
             for name, bulb in targs.items():
-                loader = LightThreadLoader(bulb.set_color, args.subtarg, **optional_kwargs, forever = False)
+                loader = LightThreadLoader(bulb.set_color, args.subtarg, **optional_kwargs, forever=False)
                 loader.start()
             wait_for_join()
 
@@ -376,10 +390,10 @@ if __name__ == "__main__":
         if args.interval is not None:
             interval = float(args.interval)
         else:
-            interval = 1.0 
+            interval = 1.0
 
         for name, bulb in targs.items():
-            loader = LightThreadLoader(bulb.blink, interval = interval)
+            loader = LightThreadLoader(bulb.blink, interval=interval)
             loader.start()
         wait_for_join()
 
@@ -391,7 +405,7 @@ if __name__ == "__main__":
         for name, bulb in targs.items():
             if args.interval:
                 interval = int(args.interval)
-            else: 
+            else:
                 interval = 1.0
             if args.brightness:
                 optional_kwargs['brightness'] = args.brightness
@@ -417,7 +431,7 @@ if __name__ == "__main__":
                 bulb = targs[args.subtarg]
                 bulb.turn_on(**optional_kwargs)
                 for x in range(0, 65535, (int(65535 / howlong))):
-                    bulb.configure(on = True, hue = x, brightness = args.brightness)
+                    bulb.configure(on=True, hue=x, brightness=args.brightness)
                     time.sleep(65535 / howlong / 1000)
                 bulb.turn_off()
 
@@ -426,9 +440,9 @@ if __name__ == "__main__":
             bulb_info = lt.get_light()
             print(bulb_info)
 
-    
-    elif args.action in [ "id", "identify" ]:
-        
+
+    elif args.action in ["id", "identify"]:
+
         for name, bulb in lights.items():
             print("----IDENTIFYING ----")
             print(f"BULB NAME: {name}")
@@ -436,13 +450,13 @@ if __name__ == "__main__":
             if args.interval is not None:
                 interval = float(args.interval)
             else:
-                interval = 1.0 
+                interval = 1.0
             optional_kwargs['interval'] = interval
 
             try:
                 for _ in range(10):
-                    bulb.blink( **optional_kwargs)
-                    print(".", end = "", flush = True)
+                    bulb.blink(**optional_kwargs)
+                    print(".", end="", flush=True)
             except KeyboardInterrupt:
                 bulb.turn_on()
     else:

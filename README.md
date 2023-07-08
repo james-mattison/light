@@ -2,30 +2,22 @@
 
 ---
 
-_Module  and command-line utility to control Philips Hue lights._
+_Library for interacting with Phillis Hue Lights_
 
+## light.py
+
+_Library for interacting with the lights_
 ![glight](img/glight.png)
 
-## Usage:
+## glight.py
 
-```
-usage: light.py [-H] [-t [TARGETS ...]] [-I INTERVAL] [-i ITERATIONS]
-                [-b BRIGHTNESS] [-h HUE] [-s SATURATION] [-v]
-                action [subtarg]
+_GTK interface for interacting with the lights using PyGTK._
 
-positional arguments:
-  action
-  subtarg
 
-options:
-  -H, --help
-  -t [TARGETS ...], --targets [TARGETS ...]
-                        A list of bulbs to target.
-  -I INTERVAL, --interval INTERVAL
-                        The interval at which to blink
-  -i ITERATIONS, --iterations ITERATIONS
-  -b BRIGHTNESS, --brightness BRIGHTNESS
-  -h HUE, --hue HUE
-  -s SATURATION, --saturation SATURATION
-  -v, --verbose
-```
+### Note
+
+You must have two environmental variables set:
+
+```LIGHT_UNIT``` -The IP address on the local network of the Bridge
+
+```LIGHT_USER``` - The API key from the Hue develoer console
