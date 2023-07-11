@@ -210,6 +210,8 @@ class _Light:
         self._saturation = None
         self._brightness = None
         self._hue = None
+        self._room = None
+
 
     def get_light(self):
         lts = make_request("lights")
@@ -217,6 +219,9 @@ class _Light:
         for idx, ob in lts.items():
             if ob['name'] == self.name:
                 return idx, ob
+
+    def set_room(self, name: str):
+        self._room = name
 
     def configure(self, *args, **kwargs):
         return self._set_state(*args, **kwargs)
@@ -295,6 +300,25 @@ class _Light:
 
 Light = _Light
 
+class Rooms(object):
+
+    _rooms = {}
+
+    def register(self, room_name: str, bulb: _Light):
+        if not room_name in self._rooms.keys():
+            self._rooms[bulb.name] = get_lights()[room_name]
+            lights[bulb.name].set_room(room_name)
+
+
+class Room(Rooms):
+    def get_rooms(self):
+        bulbs = get_lights(True)
+        groups = make_request("groups")
+        for index, obj in groups.items():
+            for _, bulb in bulbs.items():
+                if str(bulb.light_index) in obj['lights']:
+                    self.register(bulb.name, bulb)
+                    print(f"Set room for {bulb.name} as {int(index)} -> {obj['name']}")
 
 def get_lights(permit_unreachable: bool = False):
     lights = {}
@@ -306,6 +330,8 @@ def get_lights(permit_unreachable: bool = False):
         else:
             lights[lt['name']] = _Light(lt['name'])
     return lights
+
+
 
 
 def map_colors():

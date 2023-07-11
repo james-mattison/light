@@ -7,7 +7,7 @@ import subprocess
 import atexit
 
 gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk, GObject, Gdk
+from gi.repository import Gtk, GObject, Gdk, Gio
 Gdk.threads_init()
 
 bashrc = os.path.abspath(os.path.join(os.path.expanduser("~"), ".bashrc"))
@@ -276,18 +276,24 @@ class ButtonPanel:
 
 
 class MainWindow:
+    _packed = False
 
     def __init__(self):
         self.win = loader['winMain']
         self.win.set_keep_above(True)
         self.win.connect("destroy", Gtk.main_quit)
+        #self.win.connect("NSApplicationBlockTermination", Gtk.main_quit)
         self.frame = loader['boxMain']
         self.panel = panel
         self.panel.pack_box()
         self.button_panel = ButtonPanel()
         self.spinners = Spinners()
 
-        self.frame.pack_start(self.panel.grid, True, True, 0)
+        if not self._packed:
+            self.frame.pack_start(self.panel.grid, True, True, 0)
+            self._packed = True
+
+
 
     def start(self):
         self.win.show_all()
