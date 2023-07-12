@@ -55,10 +55,14 @@ HELP_ITEMS = [
 
 
 class Verbose:
+    """
+    Control verbosity. This is intended to be used with "glight" in order
+    to suppress console output meswsages.
+    """
     _verbose = False
 
     @property
-    def verbose(self):
+    def verbose(self) -> bool:
         return self._verbose
 
     @verbose.setter
@@ -67,7 +71,8 @@ class Verbose:
 
 
 #
-# Load the username and IP address of the 
+# Load the username and IP address.
+# The username is gotten from the Hue Developers website. The IP address is determined by the user at setup time.
 #
 USER = os.environ['LIGHT_USER']
 UNIT = os.environ['LIGHT_UNIT']
@@ -75,7 +80,6 @@ UNIT = os.environ['LIGHT_UNIT']
 #
 # approximate color codes for each light.
 #
-
 BASE_COLORS = {
     "red": 0,
     "orange": 4000,
@@ -94,7 +98,6 @@ BASE_COLORS = {
     "pink": 56000,
     "bright_pink": 60000
 }
-
 
 def make_request(*endpoints, kind="get", body=None):
     """
@@ -134,6 +137,13 @@ def get_color_names() -> list:
 
 
 class LightThreadLoader:
+    """
+    LightThreadLoader: implementation of threading (to be used with glight).
+    The purpose of this class is to permit multiple lights to do independent tasks
+    (for example, to use the "fade" feature, which color cycles between all the colors
+    that the light supports.
+
+    """
     threads = {}
 
     @staticmethod
@@ -142,14 +152,15 @@ class LightThreadLoader:
             del LightThreadLoader.threads[bulb_name]
 
     def __init__(self, target, *args, **kwargs):
-        self.poisoned = False
-        self.target = target
+        self.poisoned = False               # Break out of the thread (causes join)
+        self.target = target                #
         self.args = args
         self.kwargs = kwargs
         self.forever = kwargs.pop('forever')
         self.thread = self._load_thread()
 
-    def _load_thread(self):
+    def _load_thread(self) -> None or threading.Thread:
+        """Instantiate the thread. This will do the work specified by the 0-position of *args."""
         def foreverer(callback, *args, **kwargs):
             while True:
                 if self.poisoned:
@@ -178,10 +189,12 @@ class LightThreadLoader:
         return thread
 
     def start(self):
+        """Start the thread"""
         print("- Thread started")
         self.thread.start()
 
     def poison(self):
+        """Set the thread to be poisoned. This will cause it to complete after the current iteration."""
         print(f"Poisoning thread for {self.target}")
         self.poisoned = True
         while self.thread.is_alive():
@@ -191,7 +204,9 @@ class LightThreadLoader:
 
 
 class _Color:
-
+    """
+    Class representing the color capabilities of the Hue lights.
+    """
     def __init__(self, color: str):
         self.color = None
 
@@ -200,6 +215,14 @@ class _Color:
 
 
 class _Light:
+    """
+    Light: Class that controls specific bulbs.
+
+    The hue API returns a dictionary, with the keys being a string of an integer, and the values
+    consisting of JSOn objects that specify the light's current configuration and state.
+
+
+    """
     _lights = {}
 
     def __init__(self, name: str):
@@ -210,13 +233,31 @@ class _Light:
         self._saturation = None
         self._brightness = None
         self._hue = None
+        self._room = None
 
-    def get_light(self):
-        lts = make_request("lights")
+    @staticmethod
+    def get_all_lights():
+        if not _Light._lights:
+            _Light._lights = make_request("lights")
+        return _Light._lights
+
+    def get_light(self) -> (int, dict):
+        """
+        Get the actual light object - a JSON formatted object containing the light's config
+        and current state.
+        """
+        lts = self.get_all_lights()
 
         for idx, ob in lts.items():
             if ob['name'] == self.name:
                 return idx, ob
+
+    def set_room(self, name: str):
+        """Map the name of of the room to this light. """
+        self._room = name
+
+    def get_room(self):
+        return self._room
 
     def configure(self, *args, **kwargs):
         return self._set_state(*args, **kwargs)
@@ -228,6 +269,15 @@ class _Light:
                    hue=None,
                    forever=False,
                    **kwargs):
+        """
+        Update the state of a light.
+
+        on: if True, the light is powered on. If false, it is not.
+        saturation: an int between 0 and 255; controls whether the light is more white or more color
+        brightness: an int between 0 and 255; contrils the brightness of the light.
+        hue: a CMYK representation of the color that the light should be set to.
+        forever: perform this action on repeat?
+        """
 
         left = ['saturation', 'brightness', 'hue']
         right = [saturation, brightness, hue]
@@ -253,12 +303,15 @@ class _Light:
                      kind="put")
 
     def turn_off(self):
+        """Turn this bulb OFF"""
         self._set_state(False)
 
     def turn_on(self, **kwargs):
+        """Turn this bulb ON"""
         self._set_state(True, **kwargs)
 
     def blink(self, **kwargs):
+        """Blink this bulb one time"""
         interval = float(kwargs.get('interval', 1.0))
         if interval is None:
             interval = 1.0
@@ -269,6 +322,10 @@ class _Light:
         time.sleep(interval / 2)
 
     def set_color(self, color: str, **kwargs):
+        """
+        Set the color for this bulb. color is expected to be a string with the name of the color, which
+        must be in BASE_COLOR's keys.
+        """
         clr = None
         if color in BASE_COLORS.keys():
             clr = BASE_COLORS[color]
@@ -277,6 +334,10 @@ class _Light:
             print(f"Color: {color} not in {list(BASE_COLORS.keys())}")
 
     def color_cycle(self, interval: int = None, step: int = None, **kwargs):
+        """
+        Continuously change the color of the bulb. If self.forever, then will continue to
+        change until the whole script is terminated.
+        """
         if not step:
             step = 200
         else:
@@ -293,19 +354,54 @@ class _Light:
             self.configure(True, hue=i, brightness=brightness)
 
 
-Light = _Light
-
+def get_rooms(permit_unreachable: bool = False):
+    groups = make_request("groups")
+    lights = make_request("lights")
+    rooms = {}
+    for group in groups.values():
+        for idx, bulb in lights.items():
+            if idx in group['lights']:
+                if not group.get('name') in rooms.keys():
+                    rooms[group['name']] = []
+                rooms[group['name']].append(bulb)
+    return rooms
 
 def get_lights(permit_unreachable: bool = False):
+    """
+    Get a dictionary containing the name of the light, and then the JSON formatted configuration
+    for the light. If permit_unreachable, allows the program to continue running if contact with
+    the hue bridge is lost.
+    """
     lights = {}
+    names = _Light.get_all_lights()
+    rooms = get_rooms()
     lts = make_request("lights")
     for idx, lt in lts.items():
         if not permit_unreachable:
             if lt['state']['reachable']:
                 lights[lt['name']] = _Light(lt['name'])
+            else:
+                continue
         else:
             lights[lt['name']] = _Light(lt['name'])
+        lights[lt['name']].light_index = idx
+
+    for room, obj in rooms.items():
+        for lt in lights.keys():
+            for ob in obj:
+                if lt == ob.get('name'):
+                    lights[lt].set_room(room)
     return lights
+
+def get_lights_by_room(permit_unreachable = False):
+    obs = get_lights(permit_unreachable)
+    rooms = {}
+    for name, bulb in obs.items():
+        if not bulb.get_room() in rooms.keys():
+            rooms[bulb.get_room()] = []
+        rooms[bulb.get_room()].append(bulb)
+    return rooms
+
 
 
 def map_colors():
@@ -335,6 +431,8 @@ def wait_for_join():
         time.sleep(1)
         wait_for_join()
 
+#
+Light = _Light
 
 if __name__ == "__main__":
     lights = make_request("lights")

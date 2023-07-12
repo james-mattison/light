@@ -7,7 +7,7 @@ import subprocess
 import atexit
 
 gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk, GObject, Gdk
+from gi.repository import Gtk, GObject, Gdk, Gio
 Gdk.threads_init()
 
 bashrc = os.path.abspath(os.path.join(os.path.expanduser("~"), ".bashrc"))
@@ -58,9 +58,10 @@ class LightPanel:
     _objects = {}
 
     def __init__(self):
-        self.lights = light.get_lights()
-        self.grid = loader['gridLights']
+        self.rooms = light.get_lights_by_room()
+        self.grid = loader['gridRooms']
         self._packed = []
+        self._frames = {}
         self.pack_box()
 
     def pack_box(self):
@@ -70,32 +71,66 @@ class LightPanel:
 
         col = 0
         row = 0
-        for i, (name, bulb) in enumerate(self.lights.items()):
-            check = Gtk.CheckButton(label=name)
-            if bulb.light['state']['on']:
-                check.modify_fg(Gtk.StateType.NORMAL, Gdk.color_parse("blue"))
-            else:
-                check.modify_fg(Gtk.StateType.NORMAL, Gdk.color_parse("red"))
+        for i, (name, room) in enumerate(self.rooms.items()):
+            label = Gtk.Label(xalign = 0)
+            html_safe = name.strip(' ')
+            label.set_markup(f"<u><big><b><a href='#{html_safe}'>{name}:</a></b></big></u>")
+            label.connect("activate-link", self._on_link_clicked)
 
-            if i % 3 == 0:
-                col += 1
-                row = 0
-            self.grid.attach(check, row, col, 1, 1)
+            frame = Gtk.Frame()
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, expand = True)
+
+            if not name in self._frames.keys():
+                self._frames[name] = []
+
+            for n, bulb in enumerate(room):
+                check = Gtk.CheckButton(label=bulb.name)
+                if bulb.light['state']['on']:
+                    check.modify_fg(Gtk.StateType.NORMAL, Gdk.color_parse("blue"))
+                else:
+                    check.modify_fg(Gtk.StateType.NORMAL, Gdk.color_parse("red"))
+
+                self._frames[name].append(check)
+
+                if i % 3 == 0:
+                    col += 1
+                    row = 0
+
+                if not check in self._packed:
+                    self._packed.append(check)
+                box.pack_end(check, True, True, 0)
+
+            frame.add(box)
+
+            box.set_valign(True)
+            box.pack_start(label, True, True, 0)
+            self.grid.attach(frame, row, col, 1, 1)
             row += 1
-            if not check in self._packed:
-                self._packed.append(check)
-            self._objects[name] = bulb
+            self._objects[name] = room
 
         return self.grid
+
+
+    def _on_link_clicked(self, label, uri):
+        target = uri.strip("#")
+
+        for check in self._frames[target]:
+            state = check.get_active()
+            check.set_active(not state)
+        return True
 
     def get_packed(self):
         return self._packed
 
+    def get_checkboxes_by_room(self, room):
+        for checkbox, bulbs in self._frames.items():
+            if checkbox == room:
+                return self._frames[room]
+
 
 panel = LightPanel()
 
-for k, v in panel._objects.items():
-    print(k, v)
+
 
 
 class Spinners:
@@ -110,6 +145,8 @@ class Spinners:
     def _on_saturation_changed(self, widget):
         saturation = widget.get_value_as_int()
         ConfigStore.saturation = saturation
+
+
 
     def _on_brightness_changed(self, widget):
         brightness = widget.get_value_as_int()
@@ -276,18 +313,24 @@ class ButtonPanel:
 
 
 class MainWindow:
+    _packed = False
 
     def __init__(self):
         self.win = loader['winMain']
         self.win.set_keep_above(True)
         self.win.connect("destroy", Gtk.main_quit)
+        #self.win.connect("NSApplicationBlockTermination", Gtk.main_quit)
         self.frame = loader['boxMain']
         self.panel = panel
         self.panel.pack_box()
         self.button_panel = ButtonPanel()
         self.spinners = Spinners()
 
-        self.frame.pack_start(self.panel.grid, True, True, 0)
+        if not self._packed:
+            self.frame.pack_start(self.panel.grid, True, True, 0)
+            self._packed = True
+
+
 
     def start(self):
         self.win.show_all()
