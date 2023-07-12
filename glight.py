@@ -58,47 +58,69 @@ class LightPanel:
     _objects = {}
 
     def __init__(self):
-        self.rooms = light.get_lights_by_room()
+        self.rooms = {}
         self.grid = loader['gridRooms']
-        self._packed = []
-        self._frames = {}
+        self.lights = {}
+        self._frames = []
+        self._checkboxes = {}
         self.pack_box()
 
+    def update_check_colors(self):
+        self.rooms = light.get_lights_by_room()
+        for name, bulbs in self.rooms.items():
+            for bulb in bulbs:
+                if bulb.name != name:
+                    continue
+                if bulb.light['state']['on']:
+                    self._checkboxes[bulb.name].modify_fg(Gtk.StateType.NORMAL, Gdk.color_parse("blue"))
+                else:
+                    self._checkboxes[bulb.name].modify_fg(Gtk.StateType.NORMAL, Gdk.color_parse("red"))
+
     def pack_box(self):
-        if len(self._packed) != 0:
-            for ob in self._packed:
+        if len(self._frames) != 0:
+            for ob in self._frames:
                 self.grid.remove(ob)
+
+        self._checkboxes = {}
 
         col = 0
         row = 0
+        self.rooms = light.get_lights_by_room()
+
         for i, (name, room) in enumerate(self.rooms.items()):
+
             label = Gtk.Label(xalign = 0)
-            html_safe = name.strip(' ')
+            html_safe = name.replace(' ', '')
             label.set_markup(f"<u><big><b><a href='#{html_safe}'>{name}:</a></b></big></u>")
             label.connect("activate-link", self._on_link_clicked)
 
             frame = Gtk.Frame()
             box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, expand = True)
+            self._frames.append(frame)
 
-            if not name in self._frames.keys():
-                self._frames[name] = []
 
-            for n, bulb in enumerate(room):
-                check = Gtk.CheckButton(label=bulb.name)
-                if bulb.light['state']['on']:
-                    check.modify_fg(Gtk.StateType.NORMAL, Gdk.color_parse("blue"))
+            # for n, bulb in enumerate(room):
+            #     check = Gtk.CheckButton(label=bulb.name)
+            #     if bulb.light['state']['on']:
+            #         check.modify_fg(Gtk.StateType.NORMAL, Gdk.color_parse("blue"))
+            #     else:
+            #         check.modify_fg(Gtk.StateType.NORMAL, Gdk.color_parse("red"))
+            #
+            for bulb in room:
+                if not name in self._checkboxes:
+                    check = Gtk.CheckButton(label=bulb.name)
+                    self._checkboxes[bulb.name.replace(' ', '')] = check
                 else:
-                    check.modify_fg(Gtk.StateType.NORMAL, Gdk.color_parse("red"))
-
-                self._frames[name].append(check)
+                    check = self._checkboxes[bulb.name.replace(' ', '')]
 
                 if i % 3 == 0:
                     col += 1
                     row = 0
 
-                if not check in self._packed:
-                    self._packed.append(check)
+
                 box.pack_end(check, True, True, 0)
+
+                self.lights[bulb.name] = bulb
 
             frame.add(box)
 
@@ -114,18 +136,38 @@ class LightPanel:
     def _on_link_clicked(self, label, uri):
         target = uri.strip("#")
 
-        for check in self._frames[target]:
+        room_bulbs = light.get_lights_by_room()
+        room_bulbs = {k.replace(' ', ''): v for k, v in room_bulbs.items()}
+        print(room_bulbs)
+        for bulb in room_bulbs[target]:
+            check = self._checkboxes[bulb.name]
             state = check.get_active()
             check.set_active(not state)
+        self.update_check_colors()
         return True
 
-    def get_packed(self):
-        return self._packed
-
     def get_checkboxes_by_room(self, room):
-        for checkbox, bulbs in self._frames.items():
-            if checkbox == room:
-                return self._frames[room]
+            return self._checkboxes[room]
+
+    def get_checkboxes(self, checks_only = True):
+        boxes = {}
+        for light, check in self._checkboxes.items():
+            if not light in boxes.keys():
+                boxes[light] = []
+                boxes[light].append(check)
+        if not checks_only:
+            return self._checkboxes
+        else:
+            return boxes
+
+
+
+    def get_frames(self):
+        frames = []
+        for _, frames in self._frames.items():
+            for frame in frames:
+                frames.append(frame)
+        return frames
 
 
 panel = LightPanel()
@@ -246,31 +288,37 @@ class ButtonPanel:
         return cnf
 
     def _on_on_clicked(self, button):
-        for check in panel.get_packed():
-            if check.get_active():
-                name = check.get_label()
-                print(f"{name} -> ON")
-                panel.lights[name]._set_state(True, saturation=ConfigStore.saturation,
-                                              brightness=ConfigStore.brightness, hue=ConfigStore.hue)
+        for name, checks in panel.get_checkboxes().items():
+            for check in checks:
+                if check.get_active():
+                    name = check.get_label()
+                    print(f"{name} -> ON (Saturation: {ConfigStore.saturation} Brightness: {ConfigStore.brightness} Hue: {ConfigStore.hue}")
+                    panel.lights[name]._set_state(True, saturation=ConfigStore.saturation,
+                                                  brightness=ConfigStore.brightness, hue=ConfigStore.hue)
+        panel.update_check_colors()
 
     def _on_off_clicked(self, button):
-        for check in panel.get_packed():
-            if check.get_active():
-                name = check.get_label()
-                print(f"{name} -> OFF")
-                panel.lights[name]._set_state(False, saturation=ConfigStore.saturation,
-                                              brightness=ConfigStore.brightness, hue=ConfigStore.hue)
+        for name, checks in panel.get_checkboxes().items():
+            for check in checks:
+                if check.get_active():
+                    name = check.get_label()
+                    print(f"{name} -> OFF")
+                    panel.lights[name]._set_state(False, saturation=ConfigStore.saturation,
+                                                  brightness=ConfigStore.brightness, hue=ConfigStore.hue)
+
+        panel.update_check_colors()
 
     def _on_blink_clicked(self, button):
-        for check in panel.get_packed():
-            if check.get_active():
-                name = check.get_label()
-                print(f"{name} -> BLINK")
-                forever = loader['btnForever'].get_active()
-                print(panel.lights[name].name)
-                thread = light.LightThreadLoader(panel.lights[name].blink, kwargs = {"brightness": ConfigStore.brightness, "saturation": ConfigStore.saturation, "hue": ConfigStore.hue},  forever = forever)
-                panel.lights[name].blink(saturation=ConfigStore.saturation, brightness=ConfigStore.brightness,
-                                         hue=ConfigStore.hue)
+        for _, checks in panel.get_checkboxes().items():
+            for check in checks:
+                if check.get_active():
+                    name = check.get_label()
+                    print(f"{name} -> BLINK")
+                    forever = loader['btnForever'].get_active()
+                    print(panel.lights[name].name)
+                    thread = light.LightThreadLoader(panel.lights[name].blink, kwargs = {"brightness": ConfigStore.brightness, "saturation": ConfigStore.saturation, "hue": ConfigStore.hue},  forever = forever)
+                    panel.lights[name].blink(saturation=ConfigStore.saturation, brightness=ConfigStore.brightness,
+                                             hue=ConfigStore.hue)
 
     def _on_fade_clicked(self, button):
 
@@ -278,20 +326,22 @@ class ButtonPanel:
             while not ConfigStore.poisoned:
                 bulb.color_cycle(brightness=ConfigStore.brightness, saturation=ConfigStore.saturation)
 
-        for check in panel.get_packed():
-            if check.get_active():
-                #
-                # thread = threading.Thread(target=fade, args=(panel.lights[check.get_label()],), daemon=True)
-                # thread.start()
-                # ConfigStore.load_thread(check.get_label(), thread)
-                thread = light.LightThreadLoader(check.get_label(), forever = True)
-                thread.start()
-                print(f"Started thread for {check.get_label()}")
-                name = check.get_label()
-                print(f"{name} -> FADE")
+        for _, checks in panel.get_checkboxes():
+            for check in checks:
+                if check.get_active():
+                    #
+                    # thread = threading.Thread(target=fade, args=(panel.lights[check.get_label()],), daemon=True)
+                    # thread.start()
+                    # ConfigStore.load_thread(check.get_label(), thread)
+                    forever = loader['btnForever'].get_active()
+                    thread = light.LightThreadLoader(check.get_label(), forever = forever)
+                    thread.start()
+                    print(f"Started thread for {check.get_label()}")
+                    name = check.get_label()
+                    print(f"{name} -> FADE")
 
     def _on_info_clicked(self, button):
-        for check in panel.get_packed():
+        for check in panel.get_checkboxes():
             if check.get_active():
                 name = check.get_label()
                 info_window = InfoWindow(name)
@@ -320,9 +370,10 @@ class MainWindow:
         self.win.set_keep_above(True)
         self.win.connect("destroy", Gtk.main_quit)
         #self.win.connect("NSApplicationBlockTermination", Gtk.main_quit)
-        self.frame = loader['boxMain']
+
         self.panel = panel
-        self.panel.pack_box()
+        self.panel.update_check_colors()
+        self.frame = loader['boxMain']
         self.button_panel = ButtonPanel()
         self.spinners = Spinners()
 

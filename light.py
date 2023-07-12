@@ -224,6 +224,7 @@ class _Light:
 
     """
     _lights = {}
+    _bulbs = {}
 
     def __init__(self, name: str):
         self.name = name
@@ -235,11 +236,18 @@ class _Light:
         self._hue = None
         self._room = None
 
+        self._bulbs[self.name] = self
+
     @staticmethod
     def get_all_lights():
         if not _Light._lights:
             _Light._lights = make_request("lights")
         return _Light._lights
+
+    @staticmethod
+    def get_all_bulbs():
+        return _Light._bulbs
+
 
     def get_light(self) -> (int, dict):
         """
