@@ -2,16 +2,21 @@
 import gi
 import light
 import os
-import threading
 import subprocess
 import atexit
 
+"""
+glight: 
+
+"""
+
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, GObject, Gdk, Gio
+
 Gdk.threads_init()
 
 bashrc = os.path.abspath(os.path.join(os.path.expanduser("~"), ".bashrc"))
-subprocess.run(f"source {bashrc}", shell=True)
+subprocess.run(f"source {bashrc}", shell = True)
 print(f"Sourced bashrc.")
 
 
@@ -95,9 +100,8 @@ class LightPanel:
             label.connect("activate-link", self._on_link_clicked)
 
             frame = Gtk.Frame()
-            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, expand = True)
+            box = Gtk.Box(orientation = Gtk.Orientation.VERTICAL, expand = True)
             self._frames.append(frame)
-
 
             # for n, bulb in enumerate(room):
             #     check = Gtk.CheckButton(label=bulb.name)
@@ -108,7 +112,7 @@ class LightPanel:
             #
             for bulb in room:
                 if not name in self._checkboxes:
-                    check = Gtk.CheckButton(label=bulb.name)
+                    check = Gtk.CheckButton(label = bulb.name)
                     self._checkboxes[bulb.name.replace(' ', '')] = check
                 else:
                     check = self._checkboxes[bulb.name.replace(' ', '')]
@@ -116,7 +120,6 @@ class LightPanel:
                 if i % 3 == 0:
                     col += 1
                     row = 0
-
 
                 box.pack_end(check, True, True, 0)
 
@@ -132,13 +135,12 @@ class LightPanel:
 
         return self.grid
 
-
     def _on_link_clicked(self, label, uri):
         target = uri.strip("#")
 
         room_bulbs = light.get_lights_by_room()
         room_bulbs = {k.replace(' ', ''): v for k, v in room_bulbs.items()}
-        print(room_bulbs)
+        # print(room_bulbs)
         for bulb in room_bulbs[target]:
             check = self._checkboxes[bulb.name]
             state = check.get_active()
@@ -147,7 +149,7 @@ class LightPanel:
         return True
 
     def get_checkboxes_by_room(self, room):
-            return self._checkboxes[room]
+        return self._checkboxes[room]
 
     def get_checkboxes(self, checks_only = True):
         boxes = {}
@@ -160,8 +162,6 @@ class LightPanel:
         else:
             return boxes
 
-
-
     def get_frames(self):
         frames = []
         for _, frames in self._frames.items():
@@ -171,8 +171,6 @@ class LightPanel:
 
 
 panel = LightPanel()
-
-
 
 
 class Spinners:
@@ -187,8 +185,6 @@ class Spinners:
     def _on_saturation_changed(self, widget):
         saturation = widget.get_value_as_int()
         ConfigStore.saturation = saturation
-
-
 
     def _on_brightness_changed(self, widget):
         brightness = widget.get_value_as_int()
@@ -292,9 +288,10 @@ class ButtonPanel:
             for check in checks:
                 if check.get_active():
                     name = check.get_label()
-                    print(f"{name} -> ON (Saturation: {ConfigStore.saturation} Brightness: {ConfigStore.brightness} Hue: {ConfigStore.hue}")
-                    panel.lights[name]._set_state(True, saturation=ConfigStore.saturation,
-                                                  brightness=ConfigStore.brightness, hue=ConfigStore.hue)
+                    print(
+                        f"{name} -> ON (Saturation: {ConfigStore.saturation} Brightness: {ConfigStore.brightness} Hue: {ConfigStore.hue}")
+                    panel.lights[name]._set_state(True, saturation = ConfigStore.saturation,
+                                                  brightness = ConfigStore.brightness, hue = ConfigStore.hue)
         panel.update_check_colors()
 
     def _on_off_clicked(self, button):
@@ -303,8 +300,8 @@ class ButtonPanel:
                 if check.get_active():
                     name = check.get_label()
                     print(f"{name} -> OFF")
-                    panel.lights[name]._set_state(False, saturation=ConfigStore.saturation,
-                                                  brightness=ConfigStore.brightness, hue=ConfigStore.hue)
+                    panel.lights[name]._set_state(False, saturation = ConfigStore.saturation,
+                                                  brightness = ConfigStore.brightness, hue = ConfigStore.hue)
 
         panel.update_check_colors()
 
@@ -316,15 +313,18 @@ class ButtonPanel:
                     print(f"{name} -> BLINK")
                     forever = loader['btnForever'].get_active()
                     print(panel.lights[name].name)
-                    thread = light.LightThreadLoader(panel.lights[name].blink, kwargs = {"brightness": ConfigStore.brightness, "saturation": ConfigStore.saturation, "hue": ConfigStore.hue},  forever = forever)
-                    panel.lights[name].blink(saturation=ConfigStore.saturation, brightness=ConfigStore.brightness,
-                                             hue=ConfigStore.hue)
+                    thread = light.LightThreadLoader(panel.lights[name].blink,
+                                                     kwargs = {"brightness": ConfigStore.brightness,
+                                                               "saturation": ConfigStore.saturation,
+                                                               "hue": ConfigStore.hue}, forever = forever)
+                    panel.lights[name].blink(saturation = ConfigStore.saturation, brightness = ConfigStore.brightness,
+                                             hue = ConfigStore.hue)
 
     def _on_fade_clicked(self, button):
 
         def fade(bulb):
             while not ConfigStore.poisoned:
-                bulb.color_cycle(brightness=ConfigStore.brightness, saturation=ConfigStore.saturation)
+                bulb.color_cycle(brightness = ConfigStore.brightness, saturation = ConfigStore.saturation)
 
         for _, checks in panel.get_checkboxes():
             for check in checks:
@@ -369,7 +369,7 @@ class MainWindow:
         self.win = loader['winMain']
         self.win.set_keep_above(True)
         self.win.connect("destroy", Gtk.main_quit)
-        #self.win.connect("NSApplicationBlockTermination", Gtk.main_quit)
+        # self.win.connect("NSApplicationBlockTermination", Gtk.main_quit)
 
         self.panel = panel
         self.panel.update_check_colors()
@@ -380,8 +380,6 @@ class MainWindow:
         if not self._packed:
             self.frame.pack_start(self.panel.grid, True, True, 0)
             self._packed = True
-
-
 
     def start(self):
         self.win.show_all()
