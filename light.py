@@ -256,6 +256,9 @@ class _Light:
         """Map the name of of the room to this light. """
         self._room = name
 
+    def get_room(self):
+        return self._room
+
     def configure(self, *args, **kwargs):
         return self._set_state(*args, **kwargs)
 
@@ -351,28 +354,17 @@ class _Light:
             self.configure(True, hue=i, brightness=brightness)
 
 
-class Rooms(object):
-    """
-    Rooms: class to deal with organizing the lights into the rooms that they have been
-    set into. This allows the the user ot know what room the light is in before making state changes.
-    """
-    _rooms = {}
-
-    def register(self, room_name: str, bulb: _Light):
-        if not room_name in self._rooms.keys():
-            self._rooms[bulb.name] = get_lights()[room_name]
-            lights[bulb.name].set_room(room_name)
-
-
-class Room(Rooms):
-    def get_rooms(self):
-        bulbs = get_lights(True)
-        groups = make_request("groups")
-        for index, obj in groups.items():
-            for _, bulb in bulbs.items():
-                if str(bulb.light_index) in obj['lights']:
-                    self.register(bulb.name, bulb)
-                    print(f"Set room for {bulb.name} as {int(index)} -> {obj['name']}")
+def get_rooms(permit_unreachable: bool = False):
+    groups = make_request("groups")
+    lights = make_request("lights")
+    rooms = {}
+    for group in groups.values():
+        for idx, bulb in lights.items():
+            if idx in group['lights']:
+                if not group.get('name') in rooms.keys():
+                    rooms[group['name']] = []
+                rooms[group['name']].append(bulb)
+    return rooms
 
 def get_lights(permit_unreachable: bool = False):
     """
@@ -380,16 +372,35 @@ def get_lights(permit_unreachable: bool = False):
     for the light. If permit_unreachable, allows the program to continue running if contact with
     the hue bridge is lost.
     """
-    lights = _Light.get_all_lights()
+    lights = {}
+    names = _Light.get_all_lights()
+    rooms = get_rooms()
     lts = make_request("lights")
     for idx, lt in lts.items():
         if not permit_unreachable:
             if lt['state']['reachable']:
                 lights[lt['name']] = _Light(lt['name'])
+            else:
+                continue
         else:
             lights[lt['name']] = _Light(lt['name'])
+        lights[lt['name']].light_index = idx
+
+    for room, obj in rooms.items():
+        for lt in lights.keys():
+            for ob in obj:
+                if lt == ob.get('name'):
+                    lights[lt].set_room(room)
     return lights
 
+def get_lights_by_room(permit_unreachable = False):
+    obs = get_lights(permit_unreachable)
+    rooms = {}
+    for name, bulb in obs.items():
+        if not bulb.get_room() in rooms.keys():
+            rooms[bulb.get_room()] = []
+        rooms[bulb.get_room()].append(bulb)
+    return rooms
 
 
 
