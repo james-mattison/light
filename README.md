@@ -2,22 +2,20 @@
 
 ---
 
-_Library for interacting with Phillis Hue Lights_
+_Library for interacting with Philip Hue Lights_
 
-## light.py
+## Description:
 
-_Library for interacting with the lights_
-![glight](img/glight.png)
-
-## glight.py
-
-_GTK interface for interacting with the lights using PyGTK._
+This project contains two primary files:
+- `light.py`, which contains a library for interacting with the lights. Allows command-line arguments.
+- `glight.py`, which contains a GTK interface for `light.py`
 
 
-### Note
+## Requirements:
 
-You must have two environmental variables set:
-
-```LIGHT_UNIT``` -The IP address on the local network of the Bridge
-
-```LIGHT_USER``` - The API key from the Hue develoer console
+1. **Hue Bridge**: In order to interact with the lights, you need to have purchased a Hue Bridge, and have it
+already set up.
+2. **Hue Developer Account**: This is free, and is the source of the username that is used to interact with the lights. [Sign up here](https://developers.meethue.com/).
+3. **Environmental Variables**:
+- ```LIGHT_UNIT``` -The IP address on the local network of the Bridge
+- ```LIGHT_USER``` -The username retreived from the Hue Developer Account.
