@@ -363,13 +363,13 @@ class _Light:
 
     def get_state(self):
         ret = make_request("lights", str(self.light_index))
-        print(ret)
+        # print(ret)
         try:
             if ret['state']['on'] is True:
-                print(ret['name'] + " is on")
+                print(f"- {ret['name']} is ON")
                 return True
             else:
-                print(ret['name'] + " is off")
+                print(f" - {ret['name']} is OFF")
                 return False
         except AttributeError as e:
             print(e)

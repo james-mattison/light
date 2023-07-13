@@ -92,7 +92,7 @@ class LightPanel:
             for bulb in bulbs:
                 # if bulb.name != name:
                 #     continue
-                print(f"Parsing bulb: {bulb.name}")
+                # print(f"Parsing bulb: {bulb.name}")
                 if bulb.get_state() is True:
                     self._checkboxes[bulb.name].modify_fg(Gtk.StateType.NORMAL, Gdk.color_parse("blue"))
                 else:
@@ -362,9 +362,9 @@ class ButtonPanel:
                     print(f"{name} -> FADE")
 
     def _on_info_clicked(self, button):
-        for check in panel.get_checkboxes():
-            if check.get_active():
-                name = check.get_label()
+        for name, check in panel.get_checkboxes().items():
+            if check[0].get_active():
+                name = check[0].get_label()
                 info_window = InfoWindow(name)
                 info_window.set_labels()
                 info_window.show()
