@@ -361,6 +361,19 @@ class _Light:
         for i in range(0, 64000, 0 - int(step)):
             self.configure(True, hue=i, brightness=brightness)
 
+    def get_state(self):
+        ret = make_request("lights", str(self.light_index))
+        print(ret)
+        try:
+            if ret['state']['on'] is True:
+                print(ret['name'] + " is on")
+                return True
+            else:
+                print(ret['name'] + " is off")
+                return False
+        except AttributeError as e:
+            print(e)
+
 
 def get_rooms(permit_unreachable: bool = False):
     groups = make_request("groups")

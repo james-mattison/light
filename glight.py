@@ -4,10 +4,12 @@ import light
 import os
 import subprocess
 import atexit
+import time
 
 """
-glight: 
-
+glight: a GTK interface for the light.py library.
+        This provides a graphical interface to control the lights.
+        See the img/ folder for screenshots.
 """
 
 gi.require_version('Gtk', '3.0')
@@ -21,7 +23,7 @@ print(f"Sourced bashrc.")
 
 
 class GladeFileLoader:
-    """Load a the glight.glade file"""
+    """Load the glight.glade file"""
 
     def __init__(self):
         self.builder = Gtk.Builder()
@@ -35,6 +37,11 @@ loader = GladeFileLoader()
 
 
 class ConfigStore:
+    """
+    ConfigStore: class to store the settings in the spinners in the interface.
+    This class contains the values as they currently are shown in the interface.
+
+    """
     hue = 0
     brightness = 0
     saturation = 0
@@ -42,14 +49,23 @@ class ConfigStore:
     threads = {}
 
     @staticmethod
-    def get():
-        return {"brightness": ConfigStore.brightness,
-                "saturation": ConfigStore.saturation,
-                "hue": ConfigStore.hue
-                }
+    def get() -> dict:
+        """
+        Return brightness, saturation, and hue in a dictionary. This refers to the
+        values in the SpinBoxes at the present moment, not  the values that are currently
+        running on any light.
+        """
+        return {
+            "brightness": ConfigStore.brightness,
+            "saturation": ConfigStore.saturation,
+            "hue": ConfigStore.hue
+        }
 
     @staticmethod
     def load_thread(name, thread):
+        """
+        :return:
+        """
         if name in ConfigStore.threads:
             del ConfigStore.threads[name]
         ConfigStore.threads[name] = thread
@@ -74,9 +90,10 @@ class LightPanel:
         self.rooms = light.get_lights_by_room()
         for name, bulbs in self.rooms.items():
             for bulb in bulbs:
-                if bulb.name != name:
-                    continue
-                if bulb.light['state']['on']:
+                # if bulb.name != name:
+                #     continue
+                print(f"Parsing bulb: {bulb.name}")
+                if bulb.get_state() is True:
                     self._checkboxes[bulb.name].modify_fg(Gtk.StateType.NORMAL, Gdk.color_parse("blue"))
                 else:
                     self._checkboxes[bulb.name].modify_fg(Gtk.StateType.NORMAL, Gdk.color_parse("red"))
@@ -113,7 +130,9 @@ class LightPanel:
             for bulb in room:
                 if not name in self._checkboxes:
                     check = Gtk.CheckButton(label = bulb.name)
+
                     self._checkboxes[bulb.name.replace(' ', '')] = check
+
                 else:
                     check = self._checkboxes[bulb.name.replace(' ', '')]
 
@@ -292,6 +311,7 @@ class ButtonPanel:
                         f"{name} -> ON (Saturation: {ConfigStore.saturation} Brightness: {ConfigStore.brightness} Hue: {ConfigStore.hue}")
                     panel.lights[name]._set_state(True, saturation = ConfigStore.saturation,
                                                   brightness = ConfigStore.brightness, hue = ConfigStore.hue)
+                    check.modify_fg(Gtk.StateType.NORMAL, Gdk.color_parse("red"))
         panel.update_check_colors()
 
     def _on_off_clicked(self, button):
@@ -302,6 +322,7 @@ class ButtonPanel:
                     print(f"{name} -> OFF")
                     panel.lights[name]._set_state(False, saturation = ConfigStore.saturation,
                                                   brightness = ConfigStore.brightness, hue = ConfigStore.hue)
+                    check.modify_fg(Gtk.StateType.NORMAL, Gdk.color_parse("red"))
 
         panel.update_check_colors()
 
