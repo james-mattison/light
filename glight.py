@@ -4,7 +4,7 @@ import light
 import os
 import subprocess
 import atexit
-import time
+
 
 """
 glight: a GTK interface for the light.py library.
@@ -13,7 +13,7 @@ glight: a GTK interface for the light.py library.
 """
 
 gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk, GObject, Gdk, Gio
+from gi.repository import Gtk, Gdk
 
 Gdk.threads_init()
 
@@ -99,6 +99,10 @@ class LightPanel:
                     self._checkboxes[bulb.name].modify_fg(Gtk.StateType.NORMAL, Gdk.color_parse("red"))
 
     def pack_box(self):
+        """
+        Pack the checkboxes into the main window. Populates the checkboxes
+        array that is used to deterine the color of the text on the box.
+        """
         if len(self._frames) != 0:
             for ob in self._frames:
                 self.grid.remove(ob)
@@ -120,19 +124,10 @@ class LightPanel:
             box = Gtk.Box(orientation = Gtk.Orientation.VERTICAL, expand = True)
             self._frames.append(frame)
 
-            # for n, bulb in enumerate(room):
-            #     check = Gtk.CheckButton(label=bulb.name)
-            #     if bulb.light['state']['on']:
-            #         check.modify_fg(Gtk.StateType.NORMAL, Gdk.color_parse("blue"))
-            #     else:
-            #         check.modify_fg(Gtk.StateType.NORMAL, Gdk.color_parse("red"))
-            #
             for bulb in room:
                 if not name in self._checkboxes:
                     check = Gtk.CheckButton(label = bulb.name)
-
                     self._checkboxes[bulb.name.replace(' ', '')] = check
-
                 else:
                     check = self._checkboxes[bulb.name.replace(' ', '')]
 
@@ -182,11 +177,7 @@ class LightPanel:
             return boxes
 
     def get_frames(self):
-        frames = []
-        for _, frames in self._frames.items():
-            for frame in frames:
-                frames.append(frame)
-        return frames
+        return self._frames
 
 
 panel = LightPanel()
@@ -212,8 +203,6 @@ class Spinners:
     packed = False
 
     def __init__(self):
-        colors = light.get_color_names()
-
         self.combo = loader['comboColors']
         if not self.packed:
             for color, hue in light.BASE_COLORS.items():

@@ -7,13 +7,16 @@ import time
 import os
 
 """
-light.py: methods for controlling a Phillips Hue light via its RESTful API.
+light.py: methods for controlling Philips Hue Lights via its RESTful API.
+maintainer: James Mattison <james.mattison7@gmail.com>
+
 
 This script expects you to have LIGHT_USER and LIGHT_UNIT in your environmental 
 variables. 
 LIGHT_USER -> the user ID that you get from the Philips developer API.
+              This account is free and can be signed up for here: 
+              https://developers.meethue.com/
 LIGHT_UNIT -> the HTTP endpoint for the Hue Bridge.
-
 """
 
 # Disable HTTPS invalid certificate warnings.
@@ -53,11 +56,19 @@ HELP_ITEMS = [
     ("fade", "Fade light(s) colors")
 ]
 
+class LightException(BaseException):
+
+    def __init__(self, msg: str):
+        self.msg = msg
+
+    def __str__(self):
+        return self.msg
+
 
 class Verbose:
     """
     Control verbosity. This is intended to be used with "glight" in order
-    to suppress console output meswsages.
+    to suppress console output messages.
     """
     _verbose = False
 
@@ -99,7 +110,7 @@ BASE_COLORS = {
     "bright_pink": 60000
 }
 
-def make_request(*endpoints, kind="get", body=None):
+def make_request(*endpoints: str, kind: str = "get", body: dict = None) -> dict or None:
     """
     create the API request for the Hue controller
     endpoints: URL chunks
@@ -121,7 +132,7 @@ def make_request(*endpoints, kind="get", body=None):
 
     if not kind in kinds:
         print(f"{kind} not in {kinds}")
-        return
+        raise LightException(f"Invalid request kind: {kind}. Needs to be one of {kinds}.")
 
     req = kinds[kind](targ, verify=False, json=body)
 
@@ -141,13 +152,14 @@ class LightThreadLoader:
     LightThreadLoader: implementation of threading (to be used with glight).
     The purpose of this class is to permit multiple lights to do independent tasks
     (for example, to use the "fade" feature, which color cycles between all the colors
-    that the light supports.
+    that the light supports.)
 
     """
     threads = {}
 
     @staticmethod
-    def terminate_thread(bulb_name):
+    def terminate_thread(bulb_name: str):
+        """Terminate an actively running thread."""
         if bulb_name in LightThreadLoader.threads.keys():
             del LightThreadLoader.threads[bulb_name]
 
@@ -162,6 +174,7 @@ class LightThreadLoader:
     def _load_thread(self) -> None or threading.Thread:
         """Instantiate the thread. This will do the work specified by the 0-position of *args."""
         def foreverer(callback, *args, **kwargs):
+            """Inner closure to run callback indefinitely, until poisoned."""
             while True:
                 if self.poisoned:
                     break
@@ -203,23 +216,12 @@ class LightThreadLoader:
         del self
 
 
-class _Color:
-    """
-    Class representing the color capabilities of the Hue lights.
-    """
-    def __init__(self, color: str):
-        self.color = None
-
-    def build_color_map(self):
-        ...
-
-
 class _Light:
     """
     Light: Class that controls specific bulbs.
 
     The hue API returns a dictionary, with the keys being a string of an integer, and the values
-    consisting of JSOn objects that specify the light's current configuration and state.
+    consisting of JSON objects that specify the light's current configuration and state.
 
 
     """
@@ -227,25 +229,27 @@ class _Light:
     _bulbs = {}
 
     def __init__(self, name: str):
-        self.name = name
+        self.name = name                                # bulb name
+        self.light_index, self.light = self.get_light() # int, dict
+        self._saturation = None                         # int, 0-255
+        self._brightness = None                         # int, 0-255
+        self._hue = None                                # int, 0-255
+        self._room = None                               # str
 
-        self.light_index, self.light = self.get_light()
-
-        self._saturation = None
-        self._brightness = None
-        self._hue = None
-        self._room = None
-
-        self._bulbs[self.name] = self
+        self._bulbs[self.name] = self                   # List[_Light]
 
     @staticmethod
     def get_all_lights():
+        """
+        Retreive the JSON-formatted object from the Hue Bridge for each light.
+        """
         if not _Light._lights:
             _Light._lights = make_request("lights")
         return _Light._lights
 
     @staticmethod
     def get_all_bulbs():
+        """Retrieive all currently discovered bulbs."""
         return _Light._bulbs
 
 
@@ -260,14 +264,16 @@ class _Light:
             if ob['name'] == self.name:
                 return idx, ob
 
-    def set_room(self, name: str):
+    def set_room(self, name: str) -> None:
         """Map the name of of the room to this light. """
         self._room = name
 
-    def get_room(self):
+    def get_room(self) -> str:
+        """Return the room that this light is located in, as a string."""
         return self._room
 
-    def configure(self, *args, **kwargs):
+    def configure(self, *args, **kwargs) -> None:
+        """Change the state of the light."""
         return self._set_state(*args, **kwargs)
 
     def _set_state(self,
@@ -375,7 +381,12 @@ class _Light:
             print(e)
 
 
-def get_rooms(permit_unreachable: bool = False):
+def get_rooms(permit_unreachable: bool = False) -> dict:
+    """Retrieve all rooms containing lights. This will give a dictionary like:
+    {
+        "Bedroom": [ "BedroomLight1", "BedroomLight2" ]
+    }
+    """
     groups = make_request("groups")
     lights = make_request("lights")
     rooms = {}
@@ -387,7 +398,7 @@ def get_rooms(permit_unreachable: bool = False):
                 rooms[group['name']].append(bulb)
     return rooms
 
-def get_lights(permit_unreachable: bool = False):
+def get_lights(permit_unreachable: bool = False) -> dict:
     """
     Get a dictionary containing the name of the light, and then the JSON formatted configuration
     for the light. If permit_unreachable, allows the program to continue running if contact with
@@ -414,7 +425,11 @@ def get_lights(permit_unreachable: bool = False):
                     lights[lt].set_room(room)
     return lights
 
-def get_lights_by_room(permit_unreachable = False):
+
+def get_lights_by_room(permit_unreachable = False) -> dict:
+    """
+    Build the rooms dict.
+    """
     obs = get_lights(permit_unreachable)
     rooms = {}
     for name, bulb in obs.items():
@@ -424,25 +439,8 @@ def get_lights_by_room(permit_unreachable = False):
     return rooms
 
 
-
-def map_colors():
-    map = {}
-
-    light = _Light('Office')
-
-    for x in range(0, 64000, 4000):
-        light.configure(True, hue=x)
-        clr = input(f"[x] Color name: ")
-        map[clr] = x
-
-    f = open("colors.json", "w")
-    json.dump(map, f, indent=4)
-    f.close()
-
-    return map
-
-
 def wait_for_join():
+    """Wait until all threads have either died or been joined."""
     threads = [thread for thread in LightThreadLoader.threads if thread.is_alive()]
     if not threads:
         print("All threads terminated.")
