@@ -113,7 +113,11 @@ class LightPanel:
         self.rooms = light.get_lights_by_room()
         for name, bulbs in self.rooms.items():
             for bulb in bulbs:
+                if bulb.name not in self._checkboxes.keys():
+                    self.pack_box()
                 if bulb.get_state() is True:
+                    # repack it if a new light is added
+
                     self._checkboxes[bulb.name].modify_fg(Gtk.StateType.NORMAL, Gdk.color_parse("blue"))
                 else:
                     self._checkboxes[bulb.name].modify_fg(Gtk.StateType.NORMAL, Gdk.color_parse("red"))
