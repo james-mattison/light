@@ -6,6 +6,9 @@ _Library for interacting with Philip Hue Lights_
 
 ## Description:
 
+![glight](img/glight.png)
+![info](img/infowindow.png)
+
 This project contains two primary files:
 - `light.py`, which contains a library for interacting with the lights. Allows command-line arguments.
 - `glight.py`, which contains a GTK interface for `light.py`
