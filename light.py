@@ -265,7 +265,7 @@ class _Light:
                 return idx, ob
 
     def set_room(self, name: str) -> None:
-        """Map the name of of the room to this light. """
+        """Map the name of the room to this light. """
         self._room = name
 
     def get_room(self) -> str:
