@@ -4,10 +4,13 @@ import light
 import os
 import subprocess
 import atexit
+import warnings
 
+# filter out some annoying warnings that will be printed on Mac.
+warnings.filterwarnings("ignore")
 
 """
-glight: a GTK interface for the light.py library.
+glight.py: a GTK interface for the light.py library.
         This provides a graphical interface to control the lights.
         See the img/ folder for screenshots.
 """
@@ -17,10 +20,17 @@ from gi.repository import Gtk, Gdk
 
 Gdk.threads_init()
 
-bashrc = os.path.abspath(os.path.join(os.path.expanduser("~"), ".bashrc"))
-subprocess.run(f"source {bashrc}", shell = True)
-print(f"Sourced bashrc.")
 
+#
+# Check that we have the username and address, respectively, for the
+# Philips Hue Bridge. See above for more information about how this works.
+#
+for ob in ["LIGHT_USER", "LIGHT_UNIT"]:
+    if not os.environ.get(ob):
+        raise light.LightException("Missing environmental variable: {ob}!")
+
+LIGHT_USER = os.environ["LIGHT_USER"]
+LIGHT_UNIT = os.environ["LIGHT_UNIT"]
 
 class GladeFileLoader:
     """Load the glight.glade file"""
@@ -64,7 +74,9 @@ class ConfigStore:
     @staticmethod
     def load_thread(name, thread):
         """
-        :return:
+        Stores a started thread in the ConfigStore, for later usage.
+        Threads are processed here because GTK is somewhat difficult with
+        threading.
         """
         if name in ConfigStore.threads:
             del ConfigStore.threads[name]
@@ -72,27 +84,35 @@ class ConfigStore:
 
     @staticmethod
     def shutdown_threads():
+        """
+        Terminate all threads
+        """
         ConfigStore.poisoned = True
 
 
 class LightPanel:
+    """
+    Class representing the main panel with a checkbox for each reachable light.
+    When selected and an action pressed (ON, BLINK, etc), all selected lights
+    will be activated.
+    """
     _objects = {}
 
     def __init__(self):
         self.rooms = {}
-        self.grid = loader['gridRooms']
         self.lights = {}
         self._frames = []
         self._checkboxes = {}
+        self.grid = loader['gridRooms']
         self.pack_box()
-
     def update_check_colors(self):
+        """
+        When a light or lights is turned off with glight, then the text
+        for the checkbox for this light is either RED (off) or BLUE (on)
+        """
         self.rooms = light.get_lights_by_room()
         for name, bulbs in self.rooms.items():
             for bulb in bulbs:
-                # if bulb.name != name:
-                #     continue
-                # print(f"Parsing bulb: {bulb.name}")
                 if bulb.get_state() is True:
                     self._checkboxes[bulb.name].modify_fg(Gtk.StateType.NORMAL, Gdk.color_parse("blue"))
                 else:
@@ -149,7 +169,11 @@ class LightPanel:
 
         return self.grid
 
-    def _on_link_clicked(self, label, uri):
+    def _on_link_clicked(self, label, uri: str):
+        """
+        When the name of the Room is clicked (instead of a Checkbox), then select all
+        of the lights in that room.
+        """
         target = uri.strip("#")
 
         room_bulbs = light.get_lights_by_room()
@@ -162,10 +186,16 @@ class LightPanel:
         self.update_check_colors()
         return True
 
-    def get_checkboxes_by_room(self, room):
+    def get_checkboxes_by_room(self, room: str) -> Gtk.CheckButton:
+        """
+        Return the checkboxes for a specific room.
+        """
         return self._checkboxes[room]
 
-    def get_checkboxes(self, checks_only = True):
+    def get_checkboxes(self, checks_only: bool = True) -> dict:
+        """
+        Retrieve a dictionary of name: checkbox for each light that is reachable.
+        """
         boxes = {}
         for light, check in self._checkboxes.items():
             if not light in boxes.keys():
@@ -176,27 +206,37 @@ class LightPanel:
         else:
             return boxes
 
-    def get_frames(self):
+    def get_frames(self) -> list:
+        """Return the frames in which each light's title and checkbox are hosted."""
         return self._frames
 
-
+#
+# The global LightPanel object.
+#
 panel = LightPanel()
 
 
 class Spinners:
-
-    def _on_color_changed(self, widget):
+    """
+    Class to deal with the spinboxes for:
+    Brightness, Saturation, Hue
+    """
+    def _on_color_changed(self, widget: Gtk.Widget):
+        """When a new color is selected, place the currently selected color in the ConfigStore."""
         iter = widget.get_active_iter()
         if iter is not None:
             model = widget.get_model()
             color = light.BASE_COLORS[model[iter][0]]
             ConfigStore.hue = color
 
-    def _on_saturation_changed(self, widget):
+    def _on_saturation_changed(self, widget: Gtk.Widget):
+        """When a new color is selected, place the current saturation in the ConfigStore."""
+
         saturation = widget.get_value_as_int()
         ConfigStore.saturation = saturation
 
-    def _on_brightness_changed(self, widget):
+    def _on_brightness_changed(self, widget: Gtk.Widget):
+        """When a new color is selected, place the currently selected brightness in the ConfigStore."""
         brightness = widget.get_value_as_int()
         ConfigStore.brightness = brightness
 
@@ -221,6 +261,9 @@ class Spinners:
 
 
 class InfoWindow:
+    """
+    Class to show a small
+    """
 
     @staticmethod
     def get_color_approximation(hue):
@@ -241,6 +284,7 @@ class InfoWindow:
         self.cnf = None
         self.bulb_name = bulb_name
         self.window = loader['winInfo']
+        self.window.set_title("Bulb Information")
         self.window.connect("delete-event", self.hide)
         self.name_label = loader['lblBulbName']
         self.name_label.set_text(bulb_name)
@@ -249,14 +293,25 @@ class InfoWindow:
         self.saturation_label = loader['lblSaturation']
         self.brightness_label = loader['lblBrightness']
         self.color_label = loader['lblColor']
+        self.type_label = loader['lblType']
+        self.model_id_label = loader['lblModelID']
+        self.mac_label = loader['lblMac']
 
     def set_labels(self):
         self.cnf = self.get_bulb_dict(self.bulb_name)
         state = "ON" if self.cnf['state'] == True else "OFF"
+        color = "blue" if state == "ON" else "red"
         self.state_label.set_text(state)
+        self.state_label.modify_fg(Gtk.StateType.NORMAL, Gdk.color_parse(color))
+
+
         self.saturation_label.set_text(str(self.cnf['saturation']))
         self.brightness_label.set_text(str(self.cnf['brightness']))
         self.capabilities_label.set_text(str(self.cnf['capabilities']))
+        self.type_label.set_text(str(self.cnf['type']))
+        self.model_id_label.set_text(str(self.cnf['model_id']))
+        self.mac_label.set_text(str(self.cnf['mac']))
+
         try:
             color = light.BASE_COLORS[self.cnf['color']]
         except:
@@ -272,7 +327,10 @@ class InfoWindow:
                     "brightness": vals['state']['bri'],
                     "saturation": vals['state'].get('sat'),
                     "color": vals['state'].get('hue') or "",
-                    "capabilities": "Color" if vals['state'].get("ct") else "White Only"
+                    "capabilities": "Color" if vals['state'].get("ct") else "White Only",
+                    "model_id": vals['modelid'],
+                    "type": vals['type'],
+                    "mac": vals['uniqueid']
                 }
                 return state
 
@@ -377,10 +435,9 @@ class MainWindow:
 
     def __init__(self):
         self.win = loader['winMain']
+        self.win.set_title("glight")
         self.win.set_keep_above(True)
         self.win.connect("destroy", Gtk.main_quit)
-        # self.win.connect("NSApplicationBlockTermination", Gtk.main_quit)
-
         self.panel = panel
         self.panel.update_check_colors()
         self.frame = loader['boxMain']
