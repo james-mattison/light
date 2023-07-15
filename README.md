@@ -2,7 +2,7 @@
 
 ---
 
-_Library for interacting with Philip Hue Lights_
+_Library for interacting with Philips Hue Lights_
 
 ## Description:
 

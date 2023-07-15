@@ -266,7 +266,8 @@ class Spinners:
 
 class InfoWindow:
     """
-    Class to show a small
+    Class to show a small window containing information about the lights
+    that are currently configured.
     """
 
     @staticmethod
@@ -280,6 +281,7 @@ class InfoWindow:
 
     @staticmethod
     def hide(window, event):
+        """Hide the info window."""
         print(f"Hiding info window.")
         window.hide()
         return True
@@ -302,6 +304,10 @@ class InfoWindow:
         self.mac_label = loader['lblMac']
 
     def set_labels(self):
+        """
+        Set each label on the info window depending on the values gotten form the
+        Hue Bridge.
+        """
         self.cnf = self.get_bulb_dict(self.bulb_name)
         state = "ON" if self.cnf['state'] == True else "OFF"
         color = "blue" if state == "ON" else "red"
@@ -322,7 +328,17 @@ class InfoWindow:
             color = "(approx) " + self.get_color_approximation(self.cnf['color'])
         self.color_label.set_text(color)
 
-    def get_bulb_dict(self, name):
+    def get_bulb_dict(self, name: str) -> dict:
+        """
+        Retrieve a dicitonary containing the values for:
+         - state
+         - brightness
+         - saturation
+         - canonical approximate color
+         - light capabilities
+         - type of light
+         - the unique HW addr of the light
+        """
         lights = light.make_request("lights")
         for i, vals in lights.items():
             if vals['name'] == name:
@@ -339,13 +355,24 @@ class InfoWindow:
                 return state
 
     def show(self):
+        """Show the windwow."""
         self.window.show()
 
 
 class ButtonPanel:
 
+    """
+    Methods to manage the spinboxes for brigtness, hue, and canonical color.
+    Also, methods to handle the button-press events for the ON, OFF, FADE, BLINK buttons
+        as well as the Colors dropdown and the Foreverer push button.
+    """
+
     @staticmethod
     def get_configs():
+        """
+        Retreive the currently set configs from the ConfigStore for the
+        spinner values for Brigtness, Saturation, and Color
+        """
         cnf = {
             "brightness": ConfigStore.brightness,
             "saturation": ConfigStore.saturation,
@@ -354,6 +381,9 @@ class ButtonPanel:
         return cnf
 
     def _on_on_clicked(self, button):
+        """
+        Handle clicking the ON button.
+        """
         for name, checks in panel.get_checkboxes().items():
             for check in checks:
                 if check.get_active():
@@ -366,6 +396,9 @@ class ButtonPanel:
         panel.update_check_colors()
 
     def _on_off_clicked(self, button):
+        """
+        Handle clicking the OFF button.
+        """
         for name, checks in panel.get_checkboxes().items():
             for check in checks:
                 if check.get_active():
@@ -378,6 +411,9 @@ class ButtonPanel:
         panel.update_check_colors()
 
     def _on_blink_clicked(self, button):
+        """
+        Handle clicking the blink button.
+        """
         for _, checks in panel.get_checkboxes().items():
             for check in checks:
                 if check.get_active():
@@ -393,6 +429,10 @@ class ButtonPanel:
                                              hue = ConfigStore.hue)
 
     def _on_fade_clicked(self, button):
+        """
+        Handle clicking the fade button.
+        The closure is called if the Forever button is toggled.
+        """
 
         def fade(bulb):
             while not ConfigStore.poisoned:
@@ -413,6 +453,10 @@ class ButtonPanel:
                     print(f"{name} -> FADE")
 
     def _on_info_clicked(self, button):
+        """
+        Handle clicking the Info button - to bring up an info window for the
+        selected light.
+        """
         for name, check in panel.get_checkboxes().items():
             if check[0].get_active():
                 name = check[0].get_label()
